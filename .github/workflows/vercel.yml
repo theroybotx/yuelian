@@ -103,7 +103,7 @@ jobs:
     # Do not cancel remote deploys halfway through. Newer commits supersede old
     # queued runs through the live-ref check, not assumed FIFO ordering.
     concurrency:
-      group: yuelian-vercel-preview
+      group: yuelian-vercel-release
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     concurrency:
-      group: yuelian-vercel-production
+      group: yuelian-vercel-release
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0

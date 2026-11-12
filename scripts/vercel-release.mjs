@@ -56,7 +56,82 @@ export function checkedDeployment(data,env,target){
 
 // Side effects are injectable so the failure paths execute in tests without
 // credentials or network access. The CLI entrypoint below supplies real tools.
-export async function runRelease({env,target,command,api,smoke}){
+// Bootstrap is an OFFLINE orchestration contract, not a verified platform
+// adapter. realTools never provides it. Before enabling a live implementation,
+// verify generated-URL protection, CLI/API fields, alias isolation and durable
+// receipts with the actual platform. No environment variable enables this path.
+async function runBootstrap({env,command,api,smoke,bootstrap}){
+ if(bootstrap?.kind!=='offline-synthetic'||!['load','save','isolation'].every(key=>typeof bootstrap[key]==='function'))throw Error('Initial production bootstrap adapter unverified; upload refused');
+ const binding={projectId:env.VERCEL_PROJECT_ID,sourceCommit:env.GITHUB_SHA,ref:env.GITHUB_REF,origin:env.YUELIAN_PRODUCTION_ORIGIN};
+ const isolation=async()=>{
+  const state=await bootstrap.isolation();
+  if(state?.projectId!==binding.projectId||state.productionDeploymentId!==null||!Array.isArray(state.aliases)||state.aliases.length!==0)throw Error('Bootstrap alias isolation changed or unknown');
+ };
+ let record=await bootstrap.load(binding);
+ const persist=async phase=>{record={...record,phase};await bootstrap.save(structuredClone(record));};
+ if(record){
+  if(record.version!==1||Object.entries(binding).some(([key,value])=>record[key]!==value))throw Error('Bootstrap stage record binding mismatch');
+  if(!['staged','preview-ready','promoting','complete'].includes(record.phase))throw Error('Uncertain bootstrap upload; reconcile record before retry');
+  if(!record.stage?.id||!record.stage?.url||(record.phase!=='staged'&&(!record.preview?.id||!record.preview?.url)))throw Error('Bootstrap stage record incomplete; reconcile before retry');
+ }else{
+  await isolation();
+  const listed=await api('vercel','/v6/deployments?teamId='+encodeURIComponent(env.VERCEL_ORG_ID)+'&projectId='+encodeURIComponent(env.VERCEL_PROJECT_ID)+'&limit=1');
+  if(!Array.isArray(listed.deployments)||listed.deployments.length)throw Error('Bootstrap project not empty; reconcile before upload');
+  record={version:1,...binding};
+ }
+ const inspect=async(entry,target)=>{
+  if(!entry||!/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(entry.url)||!entry.id)throw Error('Bootstrap stage record missing deployment');
+  const data=checkedDeployment(JSON.parse(await command(['inspect',entry.url,'--wait','--timeout','5m','--json'])),env,target);
+  if(data.id!==entry.id)throw Error('Bootstrap stage ID mismatch');
+  return data;
+ };
+ const live=()=>api('vercel','/v13/deployments/'+encodeURIComponent(new URL(binding.origin).hostname)+'?teamId='+encodeURIComponent(env.VERCEL_ORG_ID),{allow404:true});
+ const result=()=>({sourceCommit:binding.sourceCommit,target:'production',url:record.stage.url,deploymentId:record.stage.id,previewUrl:record.preview.url,previewDeploymentId:record.preview.id,evidenceKind:'offline-synthetic'});
+ if(['promoting','complete'].includes(record.phase)){
+  await inspect(record.stage,'production');const preview=await inspect(record.preview,'preview');
+  if(preview.meta?.bootstrapStageId!==record.stage.id||record.preview.id===record.stage.id)throw Error('Preview bootstrap stage binding mismatch');
+  const deployed=checkedDeployment(await live()||{},env,'production');
+  if(deployed.id!==record.stage.id)throw Error('Uncertain promotion; reconcile alias before retry');
+  await persist('complete');return result();
+ }
+ const build=async target=>{
+  await command(['pull','--yes','--environment='+target,...(target==='preview'?['--git-branch='+binding.ref.replace(/^refs\/(heads|tags)\//,'')]:[])]);
+  await command(['build',...(target==='production'?['--prod']:[])]);
+  await command(['verify-artifact']);
+  await currentRef(env,api);await isolation();
+ };
+ const upload=async(target,stageId)=>{
+  // Persist intent BEFORE the irreversible call. An unknown result is never
+  // retried automatically, even if no deployment ID was returned.
+  await persist(target==='production'?'production-uploading':'preview-uploading');
+  const output=await command(['deploy','--yes','--prebuilt','--environment='+target,...(target==='production'?['--prod','--skip-domain']:[]),'--meta','sourceCommit='+binding.sourceCommit,...(stageId?['--meta','bootstrapStageId='+stageId]:[])]);
+  const urls=output.trim().split(/\s+/).filter(value=>/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(value));
+  if(urls.length!==1)throw Error('Bootstrap upload URL unknown; reconcile before retry');
+  const data=checkedDeployment(JSON.parse(await command(['inspect',urls[0],'--wait','--timeout','5m','--json'])),env,target);
+  if(typeof data.id!=='string'||!data.id)throw Error('Bootstrap deployment ID missing');
+  if(stageId&&data.meta?.bootstrapStageId!==stageId)throw Error('Preview bootstrap stage binding mismatch');
+  return {url:urls[0],id:data.id};
+ };
+ if(!record.stage){
+  await build('production');const stage=await upload('production');record.stage=stage;await persist('staged');
+ }
+ await inspect(record.stage,'production');await isolation();await currentRef(env,api);
+ if(!record.preview){
+  await build('preview');const preview=await upload('preview',record.stage.id);record.preview=preview;await persist('preview-ready');
+ }
+ const preview=await inspect(record.preview,'preview');
+ if(preview.meta?.bootstrapStageId!==record.stage.id||record.preview.id===record.stage.id)throw Error('Preview bootstrap stage binding mismatch');
+ await isolation();
+ await smoke(record.preview.url,env);await smoke(record.stage.url,env);
+ await currentRef(env,api);await isolation();
+ await persist('promoting');
+ await command(['promote',record.stage.url,'--yes','--timeout','5m']);
+ const deployed=checkedDeployment(await live()||{},env,'production');
+ if(deployed.id!==record.stage.id)throw Error('Production alias does not resolve to bootstrap stage');
+ await persist('complete');return result();
+}
+
+export async function runRelease({env,target,command,api,smoke,bootstrap}){
  const policy=releasePolicy(env,target);
  await currentRef(env,api);
  // Vercel documents that a new project's first deployment becomes Production.
@@ -65,6 +140,7 @@ export async function runRelease({env,target,command,api,smoke}){
   const existing=await api('vercel','/v6/deployments?teamId='+encodeURIComponent(env.VERCEL_ORG_ID)+'&projectId='+encodeURIComponent(env.VERCEL_PROJECT_ID)+'&limit=1');
   if(!Array.isArray(existing.deployments)||existing.deployments.length===0)throw Error('Preview refused: first deployment may become Production; reconcile project bootstrap before upload');
  }
+ if(target==='production'&&bootstrap)return runBootstrap({env,command,api,smoke,bootstrap});
  const initialProduction=target==='production'?await forwardOnly(env,api):false;
  if(initialProduction)throw Error('Initial production bootstrap pending: stage-first same-SHA Preview and alias isolation must be verified before upload');
  await command(['pull','--yes','--environment='+target,...(target==='preview'?['--git-branch='+policy.ref.slice('refs/heads/'.length)]:[])]);
