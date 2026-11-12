@@ -1,0 +1,11 @@
+import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {cases} from './dataset.mjs';
+import {evaluate,summarize} from './oracle.mjs';
+const [input,output]=process.argv.slice(2);if(!input||!output)throw Error('Usage: node tests/semantic/rescore.mjs original/results.json new-scoring.json');
+if(existsSync(output))throw Error('Rescoring must not overwrite existing evidence');
+const original=JSON.parse(readFileSync(input)),sha=v=>createHash('sha256').update(v).digest('hex');
+if(original.datasetDigest!==sha(readFileSync(new URL('./dataset.mjs',import.meta.url))))throw Error('Dataset changed; cannot rescore different test inputs');
+const results=original.results.map(r=>{const c=cases.find(c=>c.id===r.id);if(!c)throw Error('Unknown case');const v=evaluate(c,r.response,r.error);return {...r,originalStatus:r.status,status:v.passed?'passed':'failed',strictPassed:v.strictPassed??v.passed,checks:v.checks,strictChecks:v.strictChecks||[]};});
+const report={...original,oracleDigest:sha(readFileSync(new URL('./oracle.mjs',import.meta.url))),rescoredAt:new Date().toISOString(),originalEvidence:input,originalOracleDigest:original.oracleDigest,rescoreReason:'Separate raw-field strictness from existing backend null defaults for initial drafts. Patch preservation remains exact. Same responses; no model requests or changed expected business outcomes.',summary:summarize(results),results};
+writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify({output,...report.summary}));

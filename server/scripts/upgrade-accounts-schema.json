@@ -1,0 +1,4029 @@
+{
+  "description": "Exact schema after checked-in migrations, generated in a fresh isolated database.",
+  "postgresMajor": 17,
+  "migrations": {
+    "005": {
+      "file": "005_business_accounts.sql",
+      "sha256": "7b727de3ad6e80da2e30a631a02ef0f86cec27a3272e51bd921deec094ffb64b"
+    },
+    "006": {
+      "file": "006_plan_commit_time.sql",
+      "sha256": "e0567f30d7f5d1c723cc3deee56e81507e70716654bdedfb4f4384d2833a034b"
+    }
+  },
+  "states": {
+    "004": {
+      "schemas": [
+        {
+          "name": "app",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=UC/yuelian_security_owner,yuelian_runtime=U/yuelian_security_owner}"
+        },
+        {
+          "name": "private",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=UC/yuelian_security_owner,yuelian_runtime=U/yuelian_security_owner}"
+        }
+      ],
+      "tables": [
+        {
+          "schema": "app",
+          "name": "audit",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "actor_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "action",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "outcome",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "targets",
+              "type": "uuid[]",
+              "required": true,
+              "default": "'{}'::uuid[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "request_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "audit_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "audit_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "audit_pkey",
+              "definition": "CREATE UNIQUE INDEX audit_pkey ON app.audit USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "audit_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))"
+            },
+            {
+              "name": "audit_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'audit.read'::text))",
+              "check": null
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "invitations",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "token_hash",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "email_hash",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "role",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "permissions",
+              "type": "text[]",
+              "required": true,
+              "default": "'{}'::text[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "issued_by",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "accepted_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revoked_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "invitations_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((role = 'student'::text) = (student_id IS NOT NULL))"
+            },
+            {
+              "name": "invitations_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "invitations_role_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (role = ANY (ARRAY['admin'::text, 'assistant'::text, 'student'::text]))"
+            },
+            {
+              "name": "invitations_token_hash_key",
+              "type": "u",
+              "validated": true,
+              "definition": "UNIQUE (token_hash)"
+            },
+            {
+              "name": "invitations_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "invitations_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "invitations_pkey",
+              "definition": "CREATE UNIQUE INDEX invitations_pkey ON app.invitations USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "invitations_token_hash_key",
+              "definition": "CREATE UNIQUE INDEX invitations_token_hash_key ON app.invitations USING btree (token_hash)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "invite_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "((workspace_id = private.workspace()) AND (issued_by = private.actor()) AND private.can(workspace_id, 'team.manage'::text) AND ((role <> 'admin'::text) OR (private.role_for(workspace_id) = 'owner'::text)))"
+            },
+            {
+              "name": "invite_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": null
+            },
+            {
+              "name": "invite_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "memberships",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=rw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "user_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "display_name",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "role",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "permissions",
+              "type": "text[]",
+              "required": true,
+              "default": "'{}'::text[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "active",
+              "type": "boolean",
+              "required": true,
+              "default": "true",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revision",
+              "type": "integer",
+              "required": true,
+              "default": "1",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "memberships_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((role = 'student'::text) = (student_id IS NOT NULL))"
+            },
+            {
+              "name": "memberships_display_name_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(display_name) >= 1 AND length(display_name) <= 80)"
+            },
+            {
+              "name": "memberships_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, user_id)"
+            },
+            {
+              "name": "memberships_role_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (role = ANY (ARRAY['owner'::text, 'admin'::text, 'assistant'::text, 'student'::text]))"
+            },
+            {
+              "name": "memberships_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "memberships_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "membership_one_student",
+              "definition": "CREATE UNIQUE INDEX membership_one_student ON app.memberships USING btree (workspace_id, student_id) WHERE (student_id IS NOT NULL)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "memberships_pkey",
+              "definition": "CREATE UNIQUE INDEX memberships_pkey ON app.memberships USING btree (workspace_id, user_id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "member_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((user_id = private.actor()) OR ((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text)))",
+              "check": null
+            },
+            {
+              "name": "member_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND (role <> 'owner'::text) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": "((workspace_id = private.workspace()) AND (role <> 'owner'::text) AND private.can(workspace_id, 'team.manage'::text))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "plans",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "actor_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "plan",
+              "type": "jsonb",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "membership_revision",
+              "type": "integer",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "status",
+              "type": "text",
+              "required": true,
+              "default": "'pending'::text",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "result",
+              "type": "jsonb",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "changes",
+              "type": "jsonb",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "submission_open",
+              "type": "boolean",
+              "required": true,
+              "default": "false",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "plans_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "plans_status_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (status = ANY (ARRAY['pending'::text, 'committed'::text, 'undone'::text, 'cancelled'::text]))"
+            },
+            {
+              "name": "plans_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "plans_one_open_submission",
+              "definition": "CREATE UNIQUE INDEX plans_one_open_submission ON app.plans USING btree (workspace_id, actor_id) WHERE submission_open",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "plans_pkey",
+              "definition": "CREATE UNIQUE INDEX plans_pkey ON app.plans USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "plan_own",
+              "command": "*",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))",
+              "check": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "records",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arwd/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "kind",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "lesson_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "venue_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "owner_user_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "visibility",
+              "type": "text",
+              "required": true,
+              "default": "'private'::text",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "payload",
+              "type": "jsonb",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revision",
+              "type": "integer",
+              "required": true,
+              "default": "1",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "updated_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "followup_student_required",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'followup'::text OR student_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((kind <> ALL (ARRAY['contact'::text, 'coach-note'::text, 'participant'::text, 'ledger'::text, 'feedback'::text, 'practice'::text, 'message'::text])) OR student_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check1",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'participant'::text OR lesson_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check2",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'lesson'::text OR venue_id IS NOT NULL)"
+            },
+            {
+              "name": "records_kind_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind = ANY (ARRAY['student'::text, 'contact'::text, 'coach-note'::text, 'venue'::text, 'availability'::text, 'lesson'::text, 'participant'::text, 'ledger'::text, 'feedback'::text, 'practice'::text, 'message'::text, 'settings'::text, 'followup'::text]))"
+            },
+            {
+              "name": "records_payload_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (jsonb_typeof(payload) = 'object'::text)"
+            },
+            {
+              "name": "records_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "records_visibility_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (visibility = ANY (ARRAY['private'::text, 'shared'::text]))"
+            },
+            {
+              "name": "records_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "records_workspace_id_lesson_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, lesson_id) REFERENCES app.records(workspace_id, id)"
+            },
+            {
+              "name": "records_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            },
+            {
+              "name": "records_workspace_id_venue_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, venue_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "lesson_charge_once",
+              "definition": "CREATE UNIQUE INDEX lesson_charge_once ON app.records USING btree (workspace_id, lesson_id, student_id) WHERE ((kind = 'ledger'::text) AND (lesson_id IS NOT NULL))",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "participant_once",
+              "definition": "CREATE UNIQUE INDEX participant_once ON app.records USING btree (workspace_id, lesson_id, student_id) WHERE (kind = 'participant'::text)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_lesson",
+              "definition": "CREATE INDEX records_lesson ON app.records USING btree (workspace_id, lesson_id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_lookup",
+              "definition": "CREATE INDEX records_lookup ON app.records USING btree (workspace_id, kind, student_id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_pkey",
+              "definition": "CREATE UNIQUE INDEX records_pkey ON app.records USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "settings_once",
+              "definition": "CREATE UNIQUE INDEX settings_once ON app.records USING btree (workspace_id) WHERE (kind = 'settings'::text)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [
+            {
+              "name": "record_links",
+              "enabled": "O",
+              "definition": "CREATE TRIGGER record_links BEFORE INSERT OR UPDATE ON app.records FOR EACH ROW EXECUTE FUNCTION private.check_record_links()"
+            }
+          ],
+          "policies": [
+            {
+              "name": "record_delete",
+              "command": "d",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.write_record(workspace_id, kind, student_id, owner_user_id)",
+              "check": null
+            },
+            {
+              "name": "record_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "private.write_record(workspace_id, kind, student_id, owner_user_id)"
+            },
+            {
+              "name": "record_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.read_record(workspace_id, id, kind, student_id, owner_user_id, visibility)",
+              "check": null
+            },
+            {
+              "name": "record_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.write_record(workspace_id, kind, student_id, owner_user_id)",
+              "check": "private.write_record(workspace_id, kind, student_id, owner_user_id)"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "workspaces",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "name",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_by",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "workspaces_name_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(name) >= 1 AND length(name) <= 80)"
+            },
+            {
+              "name": "workspaces_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "workspaces_pkey",
+              "definition": "CREATE UNIQUE INDEX workspaces_pkey ON app.workspaces USING btree (id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "workspace_create",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "(created_by = private.actor())"
+            },
+            {
+              "name": "workspace_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "(private.role_for(id) IS NOT NULL)",
+              "check": null
+            }
+          ]
+        },
+        {
+          "schema": "private",
+          "name": "request_nonces",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": false,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ad/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "nonce",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": "{yuelian_runtime=r/yuelian_security_owner}"
+            }
+          ],
+          "constraints": [
+            {
+              "name": "request_nonces_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (nonce)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "request_nonces_pkey",
+              "definition": "CREATE UNIQUE INDEX request_nonces_pkey ON private.request_nonces USING btree (nonce)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": []
+        }
+      ],
+      "functions": [
+        {
+          "schema": "private",
+          "name": "accept_invite",
+          "arguments": "token text, label text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.accept_invite(token text, label text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE inv app.invitations; issuer_role text; existing app.memberships;\nBEGIN\n SELECT * INTO inv FROM app.invitations WHERE token_hash=token;\n IF NOT FOUND THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n PERFORM pg_advisory_xact_lock(hashtextextended(inv.workspace_id::text,0));\n SELECT * INTO inv FROM app.invitations WHERE token_hash=token FOR UPDATE;\n IF NOT FOUND OR inv.accepted_at IS NOT NULL OR inv.revoked_at IS NOT NULL OR inv.expires_at<=now()\n OR inv.email_hash IS DISTINCT FROM nullif(current_setting('request.email_hash',true),'')\n OR private.actor() IS NULL THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n SELECT role INTO issuer_role FROM app.memberships WHERE workspace_id=inv.workspace_id AND user_id=inv.issued_by AND active;\n IF issuer_role IS NULL OR issuer_role NOT IN ('owner','admin') OR inv.role='admin' AND issuer_role<>'owner' THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n IF inv.student_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=inv.workspace_id AND id=inv.student_id AND kind='student') THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n SELECT * INTO existing FROM app.memberships WHERE workspace_id=inv.workspace_id AND user_id=private.actor();\n IF FOUND THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n INSERT INTO app.memberships(workspace_id,user_id,display_name,role,permissions,student_id)\n VALUES(inv.workspace_id,private.actor(),label,inv.role,inv.permissions,inv.student_id);\n UPDATE app.invitations SET accepted_at=now() WHERE workspace_id=inv.workspace_id AND id=inv.id;\n RETURN inv.workspace_id;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "actor",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.actor()\n RETURNS text\n LANGUAGE sql\n STABLE\nAS $function$\n  SELECT nullif(current_setting('request.actor', true), '')\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "can",
+          "arguments": "w uuid, capability text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.can(w uuid, capability text)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT coalesce((SELECT role='owner' OR\n   (role='admin' AND capability <> 'ownership.transfer') OR\n   (role='assistant' AND capability=ANY(permissions))\n FROM app.memberships WHERE workspace_id=w AND user_id=private.actor() AND active), false)\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "check_record_links",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.check_record_links()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nBEGIN\n IF NEW.student_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.student_id AND kind='student') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n IF NEW.lesson_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.lesson_id AND kind='lesson') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n IF NEW.venue_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.venue_id AND kind='venue') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n RETURN NEW;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "create_workspace",
+          "arguments": "w uuid, title text, label text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.create_workspace(w uuid, title text, label text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nBEGIN\n IF private.actor() IS NULL THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n INSERT INTO app.workspaces(id,name,created_by) VALUES(w,title,private.actor());\n INSERT INTO app.memberships(workspace_id,user_id,display_name,role) VALUES(w,private.actor(),label,'owner');\n RETURN w;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "participates",
+          "arguments": "w uuid, lesson uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.participates(w uuid, lesson uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT EXISTS(SELECT 1 FROM app.records r WHERE r.workspace_id=w AND r.kind='participant'\n   AND r.lesson_id=lesson AND r.student_id=private.student_for(w))\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "read_record",
+          "arguments": "w uuid, record_id uuid, k text, student uuid, owner_id text, vis text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.read_record(w uuid, record_id uuid, k text, student uuid, owner_id text, vis text)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT w=private.workspace() AND private.role_for(w) IS NOT NULL AND (\n  private.can(w, CASE k\n   WHEN 'student' THEN 'students.read' WHEN 'contact' THEN 'contacts.read'\n   WHEN 'coach-note' THEN 'notes.read' WHEN 'ledger' THEN 'ledger.read'\n   WHEN 'practice' THEN 'practice.read' WHEN 'feedback' THEN 'feedback.read'\n   WHEN 'followup' THEN 'students.write' WHEN 'settings' THEN 'schedule.read'\n   WHEN 'venue' THEN 'venues.read' WHEN 'availability' THEN 'schedule.read'\n   ELSE 'schedule.read' END)\n  AND (k <> 'practice' OR vis='shared' OR owner_id=private.actor())\n  AND (k <> 'followup' OR private.can(w,'ledger.read') AND private.can(w,'schedule.read'))\n  OR private.role_for(w)='student' AND (\n   k='student' AND record_id=private.student_for(w)\n   OR k IN ('venue','availability','settings') AND vis='shared'\n   OR k='lesson' AND (private.participates(w,record_id) OR student=private.student_for(w) AND owner_id=private.actor())\n   OR k IN ('contact','participant','ledger') AND student=private.student_for(w)\n   OR k IN ('message','feedback') AND student=private.student_for(w) AND vis='shared'\n   OR k='practice' AND student=private.student_for(w) AND owner_id=private.actor()\n  )\n )\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "role_for",
+          "arguments": "w uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.role_for(w uuid)\n RETURNS text\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT role FROM app.memberships\n WHERE workspace_id=w AND user_id=private.actor() AND active\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "slot_available",
+          "arguments": "w uuid, day_date text, start_minute integer, duration_minute integer, venue uuid, excluding uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.slot_available(w uuid, day_date text, start_minute integer, duration_minute integer, venue uuid, excluding uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE rule app.records; base app.records; dow text; gap integer:=0; travel integer:=0;\nBEGIN\n IF w IS DISTINCT FROM private.workspace() OR private.role_for(w) IS NULL THEN RETURN false; END IF;\n IF NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=w AND id=venue AND kind='venue' AND (visibility='shared' OR private.can(w,'venues.read'))) THEN RETURN false; END IF;\n dow=(ARRAY['日','一','二','三','四','五','六'])[extract(dow FROM day_date::date)::integer+1];\n SELECT * INTO base FROM app.records WHERE workspace_id=w AND kind='settings';\n travel=coalesce((base.payload->>'travel')::integer,0);\n SELECT * INTO rule FROM app.records WHERE workspace_id=w AND kind='availability' AND visibility='shared'\n  AND venue_id=venue AND payload->>'day'=dow AND payload->>'from'<=day_date AND payload->>'to'>=day_date\n  ORDER BY updated_at DESC,id LIMIT 1;\n IF FOUND THEN\n  IF start_minute<extract(epoch FROM (rule.payload->>'start')::time)::integer/60 OR start_minute+duration_minute>extract(epoch FROM (rule.payload->>'end')::time)::integer/60 THEN RETURN false; END IF;\n  gap=coalesce((rule.payload->>'gap')::integer,0);\n ELSE\n  IF base.id IS NULL OR NOT (base.payload->'days' ? dow) OR start_minute<extract(epoch FROM (base.payload->>'start')::time)::integer/60 OR start_minute+duration_minute>extract(epoch FROM (base.payload->>'end')::time)::integer/60 THEN RETURN false; END IF;\n END IF;\n RETURN NOT EXISTS(SELECT 1 FROM app.records r WHERE r.workspace_id=w AND r.kind='lesson' AND r.payload->>'date'=day_date\n  AND r.payload->>'state'<>'cancelled' AND (excluding IS NULL OR r.id<>excluding)\n  AND start_minute<(r.payload->>'start')::integer+(r.payload->>'duration')::integer+CASE WHEN r.venue_id<>venue THEN greatest(travel,gap) ELSE gap END\n  AND (r.payload->>'start')::integer<start_minute+duration_minute+CASE WHEN r.venue_id<>venue THEN greatest(travel,gap) ELSE gap END);\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "student_for",
+          "arguments": "w uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.student_for(w uuid)\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT student_id FROM app.memberships WHERE workspace_id=w AND user_id=private.actor() AND role='student' AND active\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "workspace",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.workspace()\n RETURNS uuid\n LANGUAGE sql\n STABLE\nAS $function$\n  SELECT nullif(current_setting('request.workspace', true), '')::uuid\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "write_record",
+          "arguments": "w uuid, k text, student uuid, owner_id text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.write_record(w uuid, k text, student uuid, owner_id text)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT w=private.workspace() AND private.role_for(w) IS NOT NULL AND (\n  private.can(w, CASE k\n   WHEN 'student' THEN 'students.write' WHEN 'contact' THEN 'contacts.write'\n   WHEN 'coach-note' THEN 'notes.write' WHEN 'ledger' THEN 'ledger.write'\n   WHEN 'practice' THEN 'practice.write' WHEN 'feedback' THEN 'feedback.write'\n   WHEN 'followup' THEN 'students.write' WHEN 'venue' THEN 'venues.write' ELSE 'schedule.write' END)\n  AND k <> 'practice'\n  OR private.role_for(w)='student' AND k IN ('lesson','participant','practice','message')\n    AND student=private.student_for(w) AND (k<>'practice' OR owner_id=private.actor())\n )\n$function$\n"
+        }
+      ]
+    },
+    "005": {
+      "schemas": [
+        {
+          "name": "app",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=UC/yuelian_security_owner,yuelian_runtime=U/yuelian_security_owner}"
+        },
+        {
+          "name": "private",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=UC/yuelian_security_owner,yuelian_runtime=U/yuelian_security_owner}"
+        }
+      ],
+      "tables": [
+        {
+          "schema": "app",
+          "name": "audit",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "actor_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "action",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "outcome",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "targets",
+              "type": "uuid[]",
+              "required": true,
+              "default": "'{}'::uuid[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "request_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "audit_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "audit_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "audit_pkey",
+              "definition": "CREATE UNIQUE INDEX audit_pkey ON app.audit USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "audit_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))"
+            },
+            {
+              "name": "audit_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'audit.read'::text))",
+              "check": null
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "invitations",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "token_hash",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "email_hash",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "role",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "permissions",
+              "type": "text[]",
+              "required": true,
+              "default": "'{}'::text[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "issued_by",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "accepted_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revoked_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "recipient_account_id",
+              "type": "text",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "invitations_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((role = 'student'::text) = (student_id IS NOT NULL))"
+            },
+            {
+              "name": "invitations_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "invitations_recipient_account_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (recipient_account_id) REFERENCES private.accounts(id)"
+            },
+            {
+              "name": "invitations_role_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (role = ANY (ARRAY['admin'::text, 'assistant'::text, 'student'::text]))"
+            },
+            {
+              "name": "invitations_token_hash_key",
+              "type": "u",
+              "validated": true,
+              "definition": "UNIQUE (token_hash)"
+            },
+            {
+              "name": "invitations_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "invitations_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "invitations_pkey",
+              "definition": "CREATE UNIQUE INDEX invitations_pkey ON app.invitations USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "invitations_token_hash_key",
+              "definition": "CREATE UNIQUE INDEX invitations_token_hash_key ON app.invitations USING btree (token_hash)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "invite_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "((workspace_id = private.workspace()) AND (issued_by = private.actor()) AND private.can(workspace_id, 'team.manage'::text) AND ((role <> 'admin'::text) OR (private.role_for(workspace_id) = 'owner'::text)))"
+            },
+            {
+              "name": "invite_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": null
+            },
+            {
+              "name": "invite_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "memberships",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=rw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "user_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "display_name",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "role",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "permissions",
+              "type": "text[]",
+              "required": true,
+              "default": "'{}'::text[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "active",
+              "type": "boolean",
+              "required": true,
+              "default": "true",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revision",
+              "type": "integer",
+              "required": true,
+              "default": "1",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "memberships_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((role = 'student'::text) = (student_id IS NOT NULL))"
+            },
+            {
+              "name": "memberships_display_name_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(display_name) >= 1 AND length(display_name) <= 80)"
+            },
+            {
+              "name": "memberships_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, user_id)"
+            },
+            {
+              "name": "memberships_role_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (role = ANY (ARRAY['owner'::text, 'admin'::text, 'assistant'::text, 'student'::text]))"
+            },
+            {
+              "name": "memberships_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "memberships_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "membership_one_student",
+              "definition": "CREATE UNIQUE INDEX membership_one_student ON app.memberships USING btree (workspace_id, student_id) WHERE (student_id IS NOT NULL)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "memberships_pkey",
+              "definition": "CREATE UNIQUE INDEX memberships_pkey ON app.memberships USING btree (workspace_id, user_id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "member_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((user_id = private.actor()) OR ((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text)))",
+              "check": null
+            },
+            {
+              "name": "member_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND (role <> 'owner'::text) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": "((workspace_id = private.workspace()) AND (role <> 'owner'::text) AND private.can(workspace_id, 'team.manage'::text))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "plans",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "actor_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "plan",
+              "type": "jsonb",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "membership_revision",
+              "type": "integer",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "status",
+              "type": "text",
+              "required": true,
+              "default": "'pending'::text",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "result",
+              "type": "jsonb",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "changes",
+              "type": "jsonb",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "submission_open",
+              "type": "boolean",
+              "required": true,
+              "default": "false",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "plans_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "plans_status_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (status = ANY (ARRAY['pending'::text, 'committed'::text, 'undone'::text, 'cancelled'::text]))"
+            },
+            {
+              "name": "plans_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "plans_one_open_submission",
+              "definition": "CREATE UNIQUE INDEX plans_one_open_submission ON app.plans USING btree (workspace_id, actor_id) WHERE submission_open",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "plans_pkey",
+              "definition": "CREATE UNIQUE INDEX plans_pkey ON app.plans USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "plan_own",
+              "command": "*",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))",
+              "check": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "records",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arwd/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "kind",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "lesson_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "venue_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "owner_user_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "visibility",
+              "type": "text",
+              "required": true,
+              "default": "'private'::text",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "payload",
+              "type": "jsonb",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revision",
+              "type": "integer",
+              "required": true,
+              "default": "1",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "updated_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "followup_student_required",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'followup'::text OR student_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((kind <> ALL (ARRAY['contact'::text, 'coach-note'::text, 'participant'::text, 'ledger'::text, 'feedback'::text, 'practice'::text, 'message'::text])) OR student_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check1",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'participant'::text OR lesson_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check2",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'lesson'::text OR venue_id IS NOT NULL)"
+            },
+            {
+              "name": "records_kind_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind = ANY (ARRAY['student'::text, 'contact'::text, 'coach-note'::text, 'venue'::text, 'availability'::text, 'lesson'::text, 'participant'::text, 'ledger'::text, 'feedback'::text, 'practice'::text, 'message'::text, 'settings'::text, 'followup'::text]))"
+            },
+            {
+              "name": "records_payload_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (jsonb_typeof(payload) = 'object'::text)"
+            },
+            {
+              "name": "records_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "records_visibility_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (visibility = ANY (ARRAY['private'::text, 'shared'::text]))"
+            },
+            {
+              "name": "records_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "records_workspace_id_lesson_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, lesson_id) REFERENCES app.records(workspace_id, id)"
+            },
+            {
+              "name": "records_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            },
+            {
+              "name": "records_workspace_id_venue_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, venue_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "lesson_charge_once",
+              "definition": "CREATE UNIQUE INDEX lesson_charge_once ON app.records USING btree (workspace_id, lesson_id, student_id) WHERE ((kind = 'ledger'::text) AND (lesson_id IS NOT NULL))",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "participant_once",
+              "definition": "CREATE UNIQUE INDEX participant_once ON app.records USING btree (workspace_id, lesson_id, student_id) WHERE (kind = 'participant'::text)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_lesson",
+              "definition": "CREATE INDEX records_lesson ON app.records USING btree (workspace_id, lesson_id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_lookup",
+              "definition": "CREATE INDEX records_lookup ON app.records USING btree (workspace_id, kind, student_id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_pkey",
+              "definition": "CREATE UNIQUE INDEX records_pkey ON app.records USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "settings_once",
+              "definition": "CREATE UNIQUE INDEX settings_once ON app.records USING btree (workspace_id) WHERE (kind = 'settings'::text)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [
+            {
+              "name": "record_links",
+              "enabled": "O",
+              "definition": "CREATE TRIGGER record_links BEFORE INSERT OR UPDATE ON app.records FOR EACH ROW EXECUTE FUNCTION private.check_record_links()"
+            }
+          ],
+          "policies": [
+            {
+              "name": "record_delete",
+              "command": "d",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.write_record(workspace_id, kind, student_id, owner_user_id)",
+              "check": null
+            },
+            {
+              "name": "record_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "private.write_record(workspace_id, kind, student_id, owner_user_id)"
+            },
+            {
+              "name": "record_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.read_record(workspace_id, id, kind, student_id, owner_user_id, visibility)",
+              "check": null
+            },
+            {
+              "name": "record_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.write_record(workspace_id, kind, student_id, owner_user_id)",
+              "check": "private.write_record(workspace_id, kind, student_id, owner_user_id)"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "workspaces",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "name",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_by",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "workspaces_name_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(name) >= 1 AND length(name) <= 80)"
+            },
+            {
+              "name": "workspaces_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "workspaces_pkey",
+              "definition": "CREATE UNIQUE INDEX workspaces_pkey ON app.workspaces USING btree (id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "workspace_create",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "(created_by = private.actor())"
+            },
+            {
+              "name": "workspace_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "(private.role_for(id) IS NOT NULL)",
+              "check": null
+            }
+          ]
+        },
+        {
+          "schema": "private",
+          "name": "accounts",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": false,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "username",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "name",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "registration_role",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "login_kind",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "password_salt",
+              "type": "text",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "password_hash",
+              "type": "text",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "active",
+              "type": "boolean",
+              "required": true,
+              "default": "true",
+              "identity": "",
+              "generated": "",
+              "acl": "{yuelian_runtime=w/yuelian_security_owner}"
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "accounts_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (login_kind = 'password'::text AND password_salt IS NOT NULL AND password_hash IS NOT NULL AND password_salt ~ '^[a-f0-9]{32}$'::text AND password_hash ~ '^[a-f0-9]{128}$'::text OR login_kind = 'test'::text AND password_salt IS NULL AND password_hash IS NULL)"
+            },
+            {
+              "name": "accounts_id_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(id) >= 1 AND length(id) <= 200)"
+            },
+            {
+              "name": "accounts_login_kind_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (login_kind = ANY (ARRAY['password'::text, 'test'::text]))"
+            },
+            {
+              "name": "accounts_name_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(name) >= 1 AND length(name) <= 80)"
+            },
+            {
+              "name": "accounts_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (id)"
+            },
+            {
+              "name": "accounts_registration_role_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (registration_role = ANY (ARRAY['coach'::text, 'student'::text]))"
+            },
+            {
+              "name": "accounts_username_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (username ~ '^[a-z][a-z0-9._-]{2,31}$'::text)"
+            },
+            {
+              "name": "accounts_username_key",
+              "type": "u",
+              "validated": true,
+              "definition": "UNIQUE (username)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "accounts_pkey",
+              "definition": "CREATE UNIQUE INDEX accounts_pkey ON private.accounts USING btree (id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "accounts_username_key",
+              "definition": "CREATE UNIQUE INDEX accounts_username_key ON private.accounts USING btree (username)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": []
+        },
+        {
+          "schema": "private",
+          "name": "request_nonces",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": false,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ad/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "nonce",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": "{yuelian_runtime=r/yuelian_security_owner}"
+            }
+          ],
+          "constraints": [
+            {
+              "name": "request_nonces_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (nonce)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "request_nonces_pkey",
+              "definition": "CREATE UNIQUE INDEX request_nonces_pkey ON private.request_nonces USING btree (nonce)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": []
+        },
+        {
+          "schema": "private",
+          "name": "sessions",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": false,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "token_hash",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "account_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "platform_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "test_persona",
+              "type": "text",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revoked_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": "{yuelian_runtime=w/yuelian_security_owner}"
+            }
+          ],
+          "constraints": [
+            {
+              "name": "sessions_account_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (account_id) REFERENCES private.accounts(id)"
+            },
+            {
+              "name": "sessions_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (expires_at > created_at)"
+            },
+            {
+              "name": "sessions_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (token_hash)"
+            },
+            {
+              "name": "sessions_platform_id_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(platform_id) >= 1 AND length(platform_id) <= 200)"
+            },
+            {
+              "name": "sessions_token_hash_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (token_hash ~ '^[a-f0-9]{64}$'::text)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sessions_account",
+              "definition": "CREATE INDEX sessions_account ON private.sessions USING btree (account_id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "sessions_expiration",
+              "definition": "CREATE INDEX sessions_expiration ON private.sessions USING btree (expires_at)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "sessions_pkey",
+              "definition": "CREATE UNIQUE INDEX sessions_pkey ON private.sessions USING btree (token_hash)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": []
+        }
+      ],
+      "functions": [
+        {
+          "schema": "private",
+          "name": "accept_invite",
+          "arguments": "token text, label text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.accept_invite(token text, label text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE inv app.invitations; issuer_role text; existing app.memberships;\nBEGIN\n SELECT * INTO inv FROM app.invitations WHERE token_hash=token;\n IF NOT FOUND THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n PERFORM pg_advisory_xact_lock(hashtextextended(inv.workspace_id::text,0));\n SELECT * INTO inv FROM app.invitations WHERE token_hash=token FOR UPDATE;\n IF NOT FOUND OR inv.accepted_at IS NOT NULL OR inv.revoked_at IS NOT NULL OR inv.expires_at<=now()\n OR inv.recipient_account_id IS DISTINCT FROM private.actor() OR private.actor() IS NULL\n OR NOT EXISTS(SELECT 1 FROM private.accounts WHERE id=private.actor() AND active)\n THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n SELECT role INTO issuer_role FROM app.memberships WHERE workspace_id=inv.workspace_id AND user_id=inv.issued_by AND active;\n IF issuer_role IS NULL OR issuer_role NOT IN ('owner','admin') OR inv.role='admin' AND issuer_role<>'owner' THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n IF inv.student_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=inv.workspace_id AND id=inv.student_id AND kind='student') THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n SELECT * INTO existing FROM app.memberships WHERE workspace_id=inv.workspace_id AND user_id=private.actor();\n IF FOUND THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n INSERT INTO app.memberships(workspace_id,user_id,display_name,role,permissions,student_id)\n VALUES(inv.workspace_id,private.actor(),label,inv.role,inv.permissions,inv.student_id);\n UPDATE app.invitations SET accepted_at=now() WHERE workspace_id=inv.workspace_id AND id=inv.id;\n RETURN inv.workspace_id;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "actor",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.actor()\n RETURNS text\n LANGUAGE sql\n STABLE\nAS $function$\n  SELECT nullif(current_setting('request.actor', true), '')\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "can",
+          "arguments": "w uuid, capability text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.can(w uuid, capability text)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT coalesce((SELECT role='owner' OR\n   (role='admin' AND capability <> 'ownership.transfer') OR\n   (role='assistant' AND capability=ANY(permissions))\n FROM app.memberships WHERE workspace_id=w AND user_id=private.actor() AND active), false)\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "check_record_links",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.check_record_links()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nBEGIN\n IF NEW.student_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.student_id AND kind='student') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n IF NEW.lesson_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.lesson_id AND kind='lesson') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n IF NEW.venue_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.venue_id AND kind='venue') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n RETURN NEW;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "create_workspace",
+          "arguments": "w uuid, title text, label text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.create_workspace(w uuid, title text, label text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nBEGIN\n IF private.actor() IS NULL THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n INSERT INTO app.workspaces(id,name,created_by) VALUES(w,title,private.actor());\n INSERT INTO app.memberships(workspace_id,user_id,display_name,role) VALUES(w,private.actor(),label,'owner');\n RETURN w;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "participates",
+          "arguments": "w uuid, lesson uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.participates(w uuid, lesson uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT EXISTS(SELECT 1 FROM app.records r WHERE r.workspace_id=w AND r.kind='participant'\n   AND r.lesson_id=lesson AND r.student_id=private.student_for(w))\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "read_record",
+          "arguments": "w uuid, record_id uuid, k text, student uuid, owner_id text, vis text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.read_record(w uuid, record_id uuid, k text, student uuid, owner_id text, vis text)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT w=private.workspace() AND private.role_for(w) IS NOT NULL AND (\n  private.can(w, CASE k\n   WHEN 'student' THEN 'students.read' WHEN 'contact' THEN 'contacts.read'\n   WHEN 'coach-note' THEN 'notes.read' WHEN 'ledger' THEN 'ledger.read'\n   WHEN 'practice' THEN 'practice.read' WHEN 'feedback' THEN 'feedback.read'\n   WHEN 'followup' THEN 'students.write' WHEN 'settings' THEN 'schedule.read'\n   WHEN 'venue' THEN 'venues.read' WHEN 'availability' THEN 'schedule.read'\n   ELSE 'schedule.read' END)\n  AND (k <> 'practice' OR vis='shared' OR owner_id=private.actor())\n  AND (k <> 'followup' OR private.can(w,'ledger.read') AND private.can(w,'schedule.read'))\n  OR private.role_for(w)='student' AND (\n   k='student' AND record_id=private.student_for(w)\n   OR k IN ('venue','availability','settings') AND vis='shared'\n   OR k='lesson' AND (private.participates(w,record_id) OR student=private.student_for(w) AND owner_id=private.actor())\n   OR k IN ('contact','participant','ledger') AND student=private.student_for(w)\n   OR k IN ('message','feedback') AND student=private.student_for(w) AND vis='shared'\n   OR k='practice' AND student=private.student_for(w) AND owner_id=private.actor()\n  )\n )\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "role_for",
+          "arguments": "w uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.role_for(w uuid)\n RETURNS text\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT role FROM app.memberships\n WHERE workspace_id=w AND user_id=private.actor() AND active\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "slot_available",
+          "arguments": "w uuid, day_date text, start_minute integer, duration_minute integer, venue uuid, excluding uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.slot_available(w uuid, day_date text, start_minute integer, duration_minute integer, venue uuid, excluding uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE rule app.records; base app.records; dow text; gap integer:=0; travel integer:=0;\nBEGIN\n IF w IS DISTINCT FROM private.workspace() OR private.role_for(w) IS NULL THEN RETURN false; END IF;\n IF NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=w AND id=venue AND kind='venue' AND (visibility='shared' OR private.can(w,'venues.read'))) THEN RETURN false; END IF;\n dow=(ARRAY['日','一','二','三','四','五','六'])[extract(dow FROM day_date::date)::integer+1];\n SELECT * INTO base FROM app.records WHERE workspace_id=w AND kind='settings';\n travel=coalesce((base.payload->>'travel')::integer,0);\n SELECT * INTO rule FROM app.records WHERE workspace_id=w AND kind='availability' AND visibility='shared'\n  AND venue_id=venue AND payload->>'day'=dow AND payload->>'from'<=day_date AND payload->>'to'>=day_date\n  ORDER BY updated_at DESC,id LIMIT 1;\n IF FOUND THEN\n  IF start_minute<extract(epoch FROM (rule.payload->>'start')::time)::integer/60 OR start_minute+duration_minute>extract(epoch FROM (rule.payload->>'end')::time)::integer/60 THEN RETURN false; END IF;\n  gap=coalesce((rule.payload->>'gap')::integer,0);\n ELSE\n  IF base.id IS NULL OR NOT (base.payload->'days' ? dow) OR start_minute<extract(epoch FROM (base.payload->>'start')::time)::integer/60 OR start_minute+duration_minute>extract(epoch FROM (base.payload->>'end')::time)::integer/60 THEN RETURN false; END IF;\n END IF;\n RETURN NOT EXISTS(SELECT 1 FROM app.records r WHERE r.workspace_id=w AND r.kind='lesson' AND r.payload->>'date'=day_date\n  AND r.payload->>'state'<>'cancelled' AND (excluding IS NULL OR r.id<>excluding)\n  AND start_minute<(r.payload->>'start')::integer+(r.payload->>'duration')::integer+CASE WHEN r.venue_id<>venue THEN greatest(travel,gap) ELSE gap END\n  AND (r.payload->>'start')::integer<start_minute+duration_minute+CASE WHEN r.venue_id<>venue THEN greatest(travel,gap) ELSE gap END);\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "student_for",
+          "arguments": "w uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.student_for(w uuid)\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT student_id FROM app.memberships WHERE workspace_id=w AND user_id=private.actor() AND role='student' AND active\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "workspace",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.workspace()\n RETURNS uuid\n LANGUAGE sql\n STABLE\nAS $function$\n  SELECT nullif(current_setting('request.workspace', true), '')::uuid\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "write_record",
+          "arguments": "w uuid, k text, student uuid, owner_id text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.write_record(w uuid, k text, student uuid, owner_id text)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT w=private.workspace() AND private.role_for(w) IS NOT NULL AND (\n  private.can(w, CASE k\n   WHEN 'student' THEN 'students.write' WHEN 'contact' THEN 'contacts.write'\n   WHEN 'coach-note' THEN 'notes.write' WHEN 'ledger' THEN 'ledger.write'\n   WHEN 'practice' THEN 'practice.write' WHEN 'feedback' THEN 'feedback.write'\n   WHEN 'followup' THEN 'students.write' WHEN 'venue' THEN 'venues.write' ELSE 'schedule.write' END)\n  AND k <> 'practice'\n  OR private.role_for(w)='student' AND k IN ('lesson','participant','practice','message')\n    AND student=private.student_for(w) AND (k<>'practice' OR owner_id=private.actor())\n )\n$function$\n"
+        }
+      ]
+    },
+    "006": {
+      "schemas": [
+        {
+          "name": "app",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=UC/yuelian_security_owner,yuelian_runtime=U/yuelian_security_owner}"
+        },
+        {
+          "name": "private",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=UC/yuelian_security_owner,yuelian_runtime=U/yuelian_security_owner}"
+        }
+      ],
+      "tables": [
+        {
+          "schema": "app",
+          "name": "audit",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "actor_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "action",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "outcome",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "targets",
+              "type": "uuid[]",
+              "required": true,
+              "default": "'{}'::uuid[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "request_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "audit_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "audit_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "audit_pkey",
+              "definition": "CREATE UNIQUE INDEX audit_pkey ON app.audit USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "audit_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))"
+            },
+            {
+              "name": "audit_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'audit.read'::text))",
+              "check": null
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "invitations",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "token_hash",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "email_hash",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "role",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "permissions",
+              "type": "text[]",
+              "required": true,
+              "default": "'{}'::text[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "issued_by",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "accepted_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revoked_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "recipient_account_id",
+              "type": "text",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "invitations_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((role = 'student'::text) = (student_id IS NOT NULL))"
+            },
+            {
+              "name": "invitations_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "invitations_recipient_account_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (recipient_account_id) REFERENCES private.accounts(id)"
+            },
+            {
+              "name": "invitations_role_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (role = ANY (ARRAY['admin'::text, 'assistant'::text, 'student'::text]))"
+            },
+            {
+              "name": "invitations_token_hash_key",
+              "type": "u",
+              "validated": true,
+              "definition": "UNIQUE (token_hash)"
+            },
+            {
+              "name": "invitations_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "invitations_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "invitations_pkey",
+              "definition": "CREATE UNIQUE INDEX invitations_pkey ON app.invitations USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "invitations_token_hash_key",
+              "definition": "CREATE UNIQUE INDEX invitations_token_hash_key ON app.invitations USING btree (token_hash)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "invite_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "((workspace_id = private.workspace()) AND (issued_by = private.actor()) AND private.can(workspace_id, 'team.manage'::text) AND ((role <> 'admin'::text) OR (private.role_for(workspace_id) = 'owner'::text)))"
+            },
+            {
+              "name": "invite_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": null
+            },
+            {
+              "name": "invite_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": "((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "memberships",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=rw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "user_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "display_name",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "role",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "permissions",
+              "type": "text[]",
+              "required": true,
+              "default": "'{}'::text[]",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "active",
+              "type": "boolean",
+              "required": true,
+              "default": "true",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revision",
+              "type": "integer",
+              "required": true,
+              "default": "1",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "memberships_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((role = 'student'::text) = (student_id IS NOT NULL))"
+            },
+            {
+              "name": "memberships_display_name_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(display_name) >= 1 AND length(display_name) <= 80)"
+            },
+            {
+              "name": "memberships_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, user_id)"
+            },
+            {
+              "name": "memberships_role_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (role = ANY (ARRAY['owner'::text, 'admin'::text, 'assistant'::text, 'student'::text]))"
+            },
+            {
+              "name": "memberships_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "memberships_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "membership_one_student",
+              "definition": "CREATE UNIQUE INDEX membership_one_student ON app.memberships USING btree (workspace_id, student_id) WHERE (student_id IS NOT NULL)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "memberships_pkey",
+              "definition": "CREATE UNIQUE INDEX memberships_pkey ON app.memberships USING btree (workspace_id, user_id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "member_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((user_id = private.actor()) OR ((workspace_id = private.workspace()) AND private.can(workspace_id, 'team.manage'::text)))",
+              "check": null
+            },
+            {
+              "name": "member_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND (role <> 'owner'::text) AND private.can(workspace_id, 'team.manage'::text))",
+              "check": "((workspace_id = private.workspace()) AND (role <> 'owner'::text) AND private.can(workspace_id, 'team.manage'::text))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "plans",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arw/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "actor_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "plan",
+              "type": "jsonb",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "membership_revision",
+              "type": "integer",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "status",
+              "type": "text",
+              "required": true,
+              "default": "'pending'::text",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "result",
+              "type": "jsonb",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "changes",
+              "type": "jsonb",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "submission_open",
+              "type": "boolean",
+              "required": true,
+              "default": "false",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "committed_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "plans_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "plans_status_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (status = ANY (ARRAY['pending'::text, 'committed'::text, 'undone'::text, 'cancelled'::text]))"
+            },
+            {
+              "name": "plans_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "plans_one_open_submission",
+              "definition": "CREATE UNIQUE INDEX plans_one_open_submission ON app.plans USING btree (workspace_id, actor_id) WHERE submission_open",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "plans_pkey",
+              "definition": "CREATE UNIQUE INDEX plans_pkey ON app.plans USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "plan_own",
+              "command": "*",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))",
+              "check": "((workspace_id = private.workspace()) AND (actor_id = private.actor()) AND (private.role_for(workspace_id) IS NOT NULL))"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "records",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=arwd/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "workspace_id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "kind",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "student_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "lesson_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "venue_id",
+              "type": "uuid",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "owner_user_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "visibility",
+              "type": "text",
+              "required": true,
+              "default": "'private'::text",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "payload",
+              "type": "jsonb",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revision",
+              "type": "integer",
+              "required": true,
+              "default": "1",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "updated_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "followup_student_required",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'followup'::text OR student_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK ((kind <> ALL (ARRAY['contact'::text, 'coach-note'::text, 'participant'::text, 'ledger'::text, 'feedback'::text, 'practice'::text, 'message'::text])) OR student_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check1",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'participant'::text OR lesson_id IS NOT NULL)"
+            },
+            {
+              "name": "records_check2",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind <> 'lesson'::text OR venue_id IS NOT NULL)"
+            },
+            {
+              "name": "records_kind_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (kind = ANY (ARRAY['student'::text, 'contact'::text, 'coach-note'::text, 'venue'::text, 'availability'::text, 'lesson'::text, 'participant'::text, 'ledger'::text, 'feedback'::text, 'practice'::text, 'message'::text, 'settings'::text, 'followup'::text]))"
+            },
+            {
+              "name": "records_payload_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (jsonb_typeof(payload) = 'object'::text)"
+            },
+            {
+              "name": "records_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (workspace_id, id)"
+            },
+            {
+              "name": "records_visibility_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (visibility = ANY (ARRAY['private'::text, 'shared'::text]))"
+            },
+            {
+              "name": "records_workspace_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id) REFERENCES app.workspaces(id)"
+            },
+            {
+              "name": "records_workspace_id_lesson_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, lesson_id) REFERENCES app.records(workspace_id, id)"
+            },
+            {
+              "name": "records_workspace_id_student_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, student_id) REFERENCES app.records(workspace_id, id)"
+            },
+            {
+              "name": "records_workspace_id_venue_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (workspace_id, venue_id) REFERENCES app.records(workspace_id, id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "lesson_charge_once",
+              "definition": "CREATE UNIQUE INDEX lesson_charge_once ON app.records USING btree (workspace_id, lesson_id, student_id) WHERE ((kind = 'ledger'::text) AND (lesson_id IS NOT NULL))",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "participant_once",
+              "definition": "CREATE UNIQUE INDEX participant_once ON app.records USING btree (workspace_id, lesson_id, student_id) WHERE (kind = 'participant'::text)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_lesson",
+              "definition": "CREATE INDEX records_lesson ON app.records USING btree (workspace_id, lesson_id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_lookup",
+              "definition": "CREATE INDEX records_lookup ON app.records USING btree (workspace_id, kind, student_id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "records_pkey",
+              "definition": "CREATE UNIQUE INDEX records_pkey ON app.records USING btree (workspace_id, id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "settings_once",
+              "definition": "CREATE UNIQUE INDEX settings_once ON app.records USING btree (workspace_id) WHERE (kind = 'settings'::text)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [
+            {
+              "name": "record_links",
+              "enabled": "O",
+              "definition": "CREATE TRIGGER record_links BEFORE INSERT OR UPDATE ON app.records FOR EACH ROW EXECUTE FUNCTION private.check_record_links()"
+            }
+          ],
+          "policies": [
+            {
+              "name": "record_delete",
+              "command": "d",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.write_record(workspace_id, kind, student_id, owner_user_id)",
+              "check": null
+            },
+            {
+              "name": "record_insert",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "private.write_record(workspace_id, kind, student_id, owner_user_id)"
+            },
+            {
+              "name": "record_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.read_record(workspace_id, id, kind, student_id, owner_user_id, visibility)",
+              "check": null
+            },
+            {
+              "name": "record_update",
+              "command": "w",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "private.write_record(workspace_id, kind, student_id, owner_user_id)",
+              "check": "private.write_record(workspace_id, kind, student_id, owner_user_id)"
+            }
+          ]
+        },
+        {
+          "schema": "app",
+          "name": "workspaces",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": true,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "id",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "name",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_by",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "workspaces_name_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(name) >= 1 AND length(name) <= 80)"
+            },
+            {
+              "name": "workspaces_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (id)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "workspaces_pkey",
+              "definition": "CREATE UNIQUE INDEX workspaces_pkey ON app.workspaces USING btree (id)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": [
+            {
+              "name": "workspace_create",
+              "command": "a",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": null,
+              "check": "(created_by = private.actor())"
+            },
+            {
+              "name": "workspace_read",
+              "command": "r",
+              "permissive": true,
+              "roles": "{yuelian_runtime}",
+              "using": "(private.role_for(id) IS NOT NULL)",
+              "check": null
+            }
+          ]
+        },
+        {
+          "schema": "private",
+          "name": "accounts",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": false,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "username",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "name",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "registration_role",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "login_kind",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "password_salt",
+              "type": "text",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "password_hash",
+              "type": "text",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "active",
+              "type": "boolean",
+              "required": true,
+              "default": "true",
+              "identity": "",
+              "generated": "",
+              "acl": "{yuelian_runtime=w/yuelian_security_owner}"
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            }
+          ],
+          "constraints": [
+            {
+              "name": "accounts_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (login_kind = 'password'::text AND password_salt IS NOT NULL AND password_hash IS NOT NULL AND password_salt ~ '^[a-f0-9]{32}$'::text AND password_hash ~ '^[a-f0-9]{128}$'::text OR login_kind = 'test'::text AND password_salt IS NULL AND password_hash IS NULL)"
+            },
+            {
+              "name": "accounts_id_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(id) >= 1 AND length(id) <= 200)"
+            },
+            {
+              "name": "accounts_login_kind_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (login_kind = ANY (ARRAY['password'::text, 'test'::text]))"
+            },
+            {
+              "name": "accounts_name_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(name) >= 1 AND length(name) <= 80)"
+            },
+            {
+              "name": "accounts_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (id)"
+            },
+            {
+              "name": "accounts_registration_role_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (registration_role = ANY (ARRAY['coach'::text, 'student'::text]))"
+            },
+            {
+              "name": "accounts_username_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (username ~ '^[a-z][a-z0-9._-]{2,31}$'::text)"
+            },
+            {
+              "name": "accounts_username_key",
+              "type": "u",
+              "validated": true,
+              "definition": "UNIQUE (username)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "accounts_pkey",
+              "definition": "CREATE UNIQUE INDEX accounts_pkey ON private.accounts USING btree (id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "accounts_username_key",
+              "definition": "CREATE UNIQUE INDEX accounts_username_key ON private.accounts USING btree (username)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": []
+        },
+        {
+          "schema": "private",
+          "name": "request_nonces",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": false,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ad/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "nonce",
+              "type": "uuid",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": "{yuelian_runtime=r/yuelian_security_owner}"
+            }
+          ],
+          "constraints": [
+            {
+              "name": "request_nonces_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (nonce)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "request_nonces_pkey",
+              "definition": "CREATE UNIQUE INDEX request_nonces_pkey ON private.request_nonces USING btree (nonce)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": []
+        },
+        {
+          "schema": "private",
+          "name": "sessions",
+          "kind": "r",
+          "owner": "yuelian_security_owner",
+          "rls": false,
+          "force_rls": false,
+          "acl": "{yuelian_security_owner=arwdDxtm/yuelian_security_owner,yuelian_runtime=ar/yuelian_security_owner}",
+          "columns": [
+            {
+              "name": "token_hash",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "account_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "platform_id",
+              "type": "text",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "test_persona",
+              "type": "text",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "created_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": "now()",
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "expires_at",
+              "type": "timestamp with time zone",
+              "required": true,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": null
+            },
+            {
+              "name": "revoked_at",
+              "type": "timestamp with time zone",
+              "required": false,
+              "default": null,
+              "identity": "",
+              "generated": "",
+              "acl": "{yuelian_runtime=w/yuelian_security_owner}"
+            }
+          ],
+          "constraints": [
+            {
+              "name": "sessions_account_id_fkey",
+              "type": "f",
+              "validated": true,
+              "definition": "FOREIGN KEY (account_id) REFERENCES private.accounts(id)"
+            },
+            {
+              "name": "sessions_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (expires_at > created_at)"
+            },
+            {
+              "name": "sessions_pkey",
+              "type": "p",
+              "validated": true,
+              "definition": "PRIMARY KEY (token_hash)"
+            },
+            {
+              "name": "sessions_platform_id_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (length(platform_id) >= 1 AND length(platform_id) <= 200)"
+            },
+            {
+              "name": "sessions_token_hash_check",
+              "type": "c",
+              "validated": true,
+              "definition": "CHECK (token_hash ~ '^[a-f0-9]{64}$'::text)"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sessions_account",
+              "definition": "CREATE INDEX sessions_account ON private.sessions USING btree (account_id)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "sessions_expiration",
+              "definition": "CREATE INDEX sessions_expiration ON private.sessions USING btree (expires_at)",
+              "valid": true,
+              "ready": true
+            },
+            {
+              "name": "sessions_pkey",
+              "definition": "CREATE UNIQUE INDEX sessions_pkey ON private.sessions USING btree (token_hash)",
+              "valid": true,
+              "ready": true
+            }
+          ],
+          "triggers": [],
+          "policies": []
+        }
+      ],
+      "functions": [
+        {
+          "schema": "private",
+          "name": "accept_invite",
+          "arguments": "token text, label text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.accept_invite(token text, label text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE inv app.invitations; issuer_role text; existing app.memberships;\nBEGIN\n SELECT * INTO inv FROM app.invitations WHERE token_hash=token;\n IF NOT FOUND THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n PERFORM pg_advisory_xact_lock(hashtextextended(inv.workspace_id::text,0));\n SELECT * INTO inv FROM app.invitations WHERE token_hash=token FOR UPDATE;\n IF NOT FOUND OR inv.accepted_at IS NOT NULL OR inv.revoked_at IS NOT NULL OR inv.expires_at<=now()\n OR inv.recipient_account_id IS DISTINCT FROM private.actor() OR private.actor() IS NULL\n OR NOT EXISTS(SELECT 1 FROM private.accounts WHERE id=private.actor() AND active)\n THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n SELECT role INTO issuer_role FROM app.memberships WHERE workspace_id=inv.workspace_id AND user_id=inv.issued_by AND active;\n IF issuer_role IS NULL OR issuer_role NOT IN ('owner','admin') OR inv.role='admin' AND issuer_role<>'owner' THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n IF inv.student_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=inv.workspace_id AND id=inv.student_id AND kind='student') THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n SELECT * INTO existing FROM app.memberships WHERE workspace_id=inv.workspace_id AND user_id=private.actor();\n IF FOUND THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n INSERT INTO app.memberships(workspace_id,user_id,display_name,role,permissions,student_id)\n VALUES(inv.workspace_id,private.actor(),label,inv.role,inv.permissions,inv.student_id);\n UPDATE app.invitations SET accepted_at=now() WHERE workspace_id=inv.workspace_id AND id=inv.id;\n RETURN inv.workspace_id;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "actor",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.actor()\n RETURNS text\n LANGUAGE sql\n STABLE\nAS $function$\n  SELECT nullif(current_setting('request.actor', true), '')\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "can",
+          "arguments": "w uuid, capability text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.can(w uuid, capability text)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT coalesce((SELECT role='owner' OR\n   (role='admin' AND capability <> 'ownership.transfer') OR\n   (role='assistant' AND capability=ANY(permissions))\n FROM app.memberships WHERE workspace_id=w AND user_id=private.actor() AND active), false)\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "check_record_links",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.check_record_links()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nBEGIN\n IF NEW.student_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.student_id AND kind='student') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n IF NEW.lesson_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.lesson_id AND kind='lesson') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n IF NEW.venue_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=NEW.workspace_id AND id=NEW.venue_id AND kind='venue') THEN RAISE EXCEPTION 'invalid reference' USING ERRCODE='23514'; END IF;\n RETURN NEW;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "create_workspace",
+          "arguments": "w uuid, title text, label text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.create_workspace(w uuid, title text, label text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nBEGIN\n IF private.actor() IS NULL THEN RAISE EXCEPTION 'unavailable' USING ERRCODE='42501'; END IF;\n INSERT INTO app.workspaces(id,name,created_by) VALUES(w,title,private.actor());\n INSERT INTO app.memberships(workspace_id,user_id,display_name,role) VALUES(w,private.actor(),label,'owner');\n RETURN w;\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "participates",
+          "arguments": "w uuid, lesson uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.participates(w uuid, lesson uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT EXISTS(SELECT 1 FROM app.records r WHERE r.workspace_id=w AND r.kind='participant'\n   AND r.lesson_id=lesson AND r.student_id=private.student_for(w))\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "read_record",
+          "arguments": "w uuid, record_id uuid, k text, student uuid, owner_id text, vis text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.read_record(w uuid, record_id uuid, k text, student uuid, owner_id text, vis text)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT w=private.workspace() AND private.role_for(w) IS NOT NULL AND (\n  private.can(w, CASE k\n   WHEN 'student' THEN 'students.read' WHEN 'contact' THEN 'contacts.read'\n   WHEN 'coach-note' THEN 'notes.read' WHEN 'ledger' THEN 'ledger.read'\n   WHEN 'practice' THEN 'practice.read' WHEN 'feedback' THEN 'feedback.read'\n   WHEN 'followup' THEN 'students.write' WHEN 'settings' THEN 'schedule.read'\n   WHEN 'venue' THEN 'venues.read' WHEN 'availability' THEN 'schedule.read'\n   ELSE 'schedule.read' END)\n  AND (k <> 'practice' OR vis='shared' OR owner_id=private.actor())\n  AND (k <> 'followup' OR private.can(w,'ledger.read') AND private.can(w,'schedule.read'))\n  OR private.role_for(w)='student' AND (\n   k='student' AND record_id=private.student_for(w)\n   OR k IN ('venue','availability','settings') AND vis='shared'\n   OR k='lesson' AND (private.participates(w,record_id) OR student=private.student_for(w) AND owner_id=private.actor())\n   OR k IN ('contact','participant','ledger') AND student=private.student_for(w)\n   OR k IN ('message','feedback') AND student=private.student_for(w) AND vis='shared'\n   OR k='practice' AND student=private.student_for(w) AND owner_id=private.actor()\n  )\n )\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "role_for",
+          "arguments": "w uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.role_for(w uuid)\n RETURNS text\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT role FROM app.memberships\n WHERE workspace_id=w AND user_id=private.actor() AND active\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "slot_available",
+          "arguments": "w uuid, day_date text, start_minute integer, duration_minute integer, venue uuid, excluding uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.slot_available(w uuid, day_date text, start_minute integer, duration_minute integer, venue uuid, excluding uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE rule app.records; base app.records; dow text; gap integer:=0; travel integer:=0;\nBEGIN\n IF w IS DISTINCT FROM private.workspace() OR private.role_for(w) IS NULL THEN RETURN false; END IF;\n IF NOT EXISTS(SELECT 1 FROM app.records WHERE workspace_id=w AND id=venue AND kind='venue' AND (visibility='shared' OR private.can(w,'venues.read'))) THEN RETURN false; END IF;\n dow=(ARRAY['日','一','二','三','四','五','六'])[extract(dow FROM day_date::date)::integer+1];\n SELECT * INTO base FROM app.records WHERE workspace_id=w AND kind='settings';\n travel=coalesce((base.payload->>'travel')::integer,0);\n SELECT * INTO rule FROM app.records WHERE workspace_id=w AND kind='availability' AND visibility='shared'\n  AND venue_id=venue AND payload->>'day'=dow AND payload->>'from'<=day_date AND payload->>'to'>=day_date\n  ORDER BY updated_at DESC,id LIMIT 1;\n IF FOUND THEN\n  IF start_minute<extract(epoch FROM (rule.payload->>'start')::time)::integer/60 OR start_minute+duration_minute>extract(epoch FROM (rule.payload->>'end')::time)::integer/60 THEN RETURN false; END IF;\n  gap=coalesce((rule.payload->>'gap')::integer,0);\n ELSE\n  IF base.id IS NULL OR NOT (base.payload->'days' ? dow) OR start_minute<extract(epoch FROM (base.payload->>'start')::time)::integer/60 OR start_minute+duration_minute>extract(epoch FROM (base.payload->>'end')::time)::integer/60 THEN RETURN false; END IF;\n END IF;\n RETURN NOT EXISTS(SELECT 1 FROM app.records r WHERE r.workspace_id=w AND r.kind='lesson' AND r.payload->>'date'=day_date\n  AND r.payload->>'state'<>'cancelled' AND (excluding IS NULL OR r.id<>excluding)\n  AND start_minute<(r.payload->>'start')::integer+(r.payload->>'duration')::integer+CASE WHEN r.venue_id<>venue THEN greatest(travel,gap) ELSE gap END\n  AND (r.payload->>'start')::integer<start_minute+duration_minute+CASE WHEN r.venue_id<>venue THEN greatest(travel,gap) ELSE gap END);\nEND $function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "student_for",
+          "arguments": "w uuid",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.student_for(w uuid)\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT student_id FROM app.memberships WHERE workspace_id=w AND user_id=private.actor() AND role='student' AND active\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "workspace",
+          "arguments": "",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.workspace()\n RETURNS uuid\n LANGUAGE sql\n STABLE\nAS $function$\n  SELECT nullif(current_setting('request.workspace', true), '')::uuid\n$function$\n"
+        },
+        {
+          "schema": "private",
+          "name": "write_record",
+          "arguments": "w uuid, k text, student uuid, owner_id text",
+          "owner": "yuelian_security_owner",
+          "acl": "{yuelian_security_owner=X/yuelian_security_owner,yuelian_runtime=X/yuelian_security_owner}",
+          "definition": "CREATE OR REPLACE FUNCTION private.write_record(w uuid, k text, student uuid, owner_id text)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT w=private.workspace() AND private.role_for(w) IS NOT NULL AND (\n  private.can(w, CASE k\n   WHEN 'student' THEN 'students.write' WHEN 'contact' THEN 'contacts.write'\n   WHEN 'coach-note' THEN 'notes.write' WHEN 'ledger' THEN 'ledger.write'\n   WHEN 'practice' THEN 'practice.write' WHEN 'feedback' THEN 'feedback.write'\n   WHEN 'followup' THEN 'students.write' WHEN 'venue' THEN 'venues.write' ELSE 'schedule.write' END)\n  AND k <> 'practice'\n  OR private.role_for(w)='student' AND k IN ('lesson','participant','practice','message')\n    AND student=private.student_for(w) AND (k<>'practice' OR owner_id=private.actor())\n )\n$function$\n"
+        }
+      ]
+    }
+  }
+}

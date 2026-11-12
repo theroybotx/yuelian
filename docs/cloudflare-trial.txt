@@ -1,0 +1,82 @@
+约练：Cloudflare 邀请试用部署
+
+试用网址：https://yuelian-trial.theroybotx.workers.dev
+访问边界（2026-11-02实测）：此Mac既有代理网络下，8账号与真实AI链验收通过。
+禁用代理直连本workers.dev地址12秒连接超时，同网络Cloudflare官网和百度直连200。
+目前不能保证大陆朋友直接访问；账户无现有Cloudflare zone，未购买新域名或改其他服务。
+具体记录见output/trial-20261102/online-direct-network.json及online-direct-baseline.json。
+
+首次部署：2026-11-02 01:40（Asia/Shanghai）。
+首次Worker版本：c4e91dda-05ba-423d-9358-51d5af52d56a。
+11/02 09:33后台连接修复版本：5c7ec7ff-e2d9-41cd-b3e5-83e5a7bc262a。
+首次发布与测试回执：output/trial-20261102/REPORT.txt、deployment.json。
+本轮连接修复、实测结果与限制：output/connection-repair-20261102/REPORT.txt。
+
+本次使用独立 Cloudflare Worker（yuelian-trial），不要求 Sites/GPT 身份。
+原 Sites 预览保留私有访问和原通道；本次不会重新部署或扩大它的分享范围。
+
+网页复用 frontend/index.html 和 public/，登录页为 cloudflare/login.html。
+cloudflare/worker.ts 负责独立入口、同源检查、业务会话 cookie 和签名转发。
+运行后台及 PostgreSQL 仍在 Mac 的 com.jarvisxiao.yuelian-security，需保持在线。
+独立入口通过 Workers VPC Service + Cloudflare named Tunnel 连接本机127.0.0.1:18797。
+公网段使用加密QUIC，HTTP仅用于隧道落地后的Mac回环连接；服务固定目标地址和端口。
+不再依赖Tailscale Funnel公网握手；原Sites与其他Funnel路由保持，不删除或重置。
+没有将 PostgreSQL 权限逻辑换成 D1，也没有本轮原生 APP/小程序发布。
+
+公开站只支持管理员创建的用户名/密码账号，不提供注册、Mock角色切换或GPT登录。
+注册接口在独立 Worker 和后端 standalone 通道均拒绝；部署时后端全局
+YUELIAN_REGISTRATION_ENABLED=false 也关闭旧通道注册。原账号不被重置。
+账号开通流程、幂等性和私密密码文件要求见 docs/trial-accounts.md。
+
+第一次使用
+1. 教练登录分配的教练账号，在学员页添加学员档案。
+2. 在该档案“账号关联”中输入学员已有用户名，生成并复制邀请口令。
+3. 学员登录自己的账号，在“接受教练邀请”处粘贴口令。
+4. 关联成功后，学员可以向这位教练提交预约；教练在收件箱接受或拒绝。
+5. 同一学员可接受不同教练邀请；各教练资料及课时分别隔离。
+新建账号不按姓名自动关联，也不会收到既有Mock账号的数据。
+
+维护与构建
+npm run build:trial 只复制明确的公开静态文件到 .cloudflare/assets。
+cloudflare/wrangler.jsonc 定义部署、静态绑定及后端地址，文件不含密钥。
+npm run deploy:trial 构建并通过官方Wrangler发布；在验收通过后执行。
+配置中的YUELIAN_BACKEND绑定指向yuelian-api，service_id为
+01a199df-d580-7c31-956d-5882481ac045；其唯一目标为上述Mac后台。
+当前Wrangler OAuth没有VPC资源授权，直接携带绑定上传会返回10196，不能当作发布成功。
+本轮用现有Wrangler授权上传代码，再由已登录的账号控制台添加同一后端的绑定。
+最终线上绑定、URL和源码配置一致；未扩大OAuth范围。后续部署必须保留该绑定，
+不得为了绕过10196直接删掉正式配置中的vpc_services，否则HTTP请求将故意失败关闭。
+若维护授权仍不支持VPC，使用账号控制台完成部署/绑定并重新验证公网接口；
+本轮output中的bootstrap-worker.json仅为故障切换中间态，禁止当作正常发布配置。
+YUELIAN_STANDALONE_BRIDGE_SECRET 必须为独立随机密钥，以Wrangler secret保存，
+后端私有 runtime.env 保存相同值；它不得与原 YUELIAN_BRIDGE_SECRET 相同。
+禁止将任意浏览器 oai-/x-user-/x-role 头作为身份；数据库session确定真正用户。
+
+后台通道维护
+launchd服务：com.jarvisxiao.yuelian-tunnel；RunAtLoad与KeepAlive开启。
+plist：~/Library/LaunchAgents/com.jarvisxiao.yuelian-tunnel.plist。
+程序、token和日志：~/.local/state/yuelian-security/；token权限0600，不进入Git。
+固定隧道ID：9e7eabe8-e807-408c-a165-ad5caf328107；名称yuelian-mac-backend。
+本机状态端口127.0.0.1:18932；后台端口18797。只重启本服务，不停其他cloudflared或Tailscale。
+诊断应依次检查公开/api/auth/session、私有后台、隧道连接，不能仅凭登录页200判断后台在线。
+正常匿名/api/auth/session返回200且authenticated=false；直达后台未签名请求返回401。
+失败不自动改走另一通道重发写入，避免已成功提交的业务被执行两次。
+Workers VPC当前为Beta；Mac休眠、断网、数据库停止仍会中断业务，尚非云端高可用后台。
+
+本轮验证的工具
+npm run test:unit
+npm run test:trial:worker
+npm run test:trial:auth
+npm run test:trial:accounts
+npm run test:trial:browser
+旧的业务、UI、数据库浏览器与真实模型语义回归仍保留原入口。
+所有业务写入和故障验收仅使用带护栏的隔离库；运行库只新增明确授权账号。
+
+回退
+网页可通过Cloudflare版本回退；但旧c4e91dda依赖故障的Funnel公网通道，
+不能把回退该版本当作本次断线的恢复方案。须保留或修复可用的后台通道。
+若首次发布异常，可禁用该trial Worker入口，保留原Sites预览，不改D1或其他Workers。
+后端回退应使用保存的源码版本及私有runtime配置备份，重新启动同一个launchd服务；
+不要重置Funnel或还原整台Mac。新增账号和业务数据独立于代码版本，不自动删除。
+密码重置与追加用户由管理员按具体请求处理，没有公开重置接口。
+完整测试及发布证据位于 output/trial-20261102/；账号密码仅在Mac私有交付文件。

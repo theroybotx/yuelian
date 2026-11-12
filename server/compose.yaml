@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: yuelian
+      POSTGRES_USER: yuelian_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?Set RUNTIME_DB_PASSWORD}
+    volumes:
+      - yuelian-db:/var/lib/postgresql/data
+      - ./migrations/001_permissions.sql:/migrations/001_permissions.sql:ro
+      - ./migrations/002_nonce_cleanup_privilege.sql:/migrations/002_nonce_cleanup_privilege.sql:ro
+      - ./migrations/003_business_integration.sql:/migrations/003_business_integration.sql:ro
+      - ./init-db.sh:/docker-entrypoint-initdb.d/10-yuelian.sh:ro
+    networks: [database]
+  api:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: yuelian
+      PGUSER: yuelian_runtime
+      PGPASSWORD: ${RUNTIME_DB_PASSWORD:?Set RUNTIME_DB_PASSWORD}
+      YUELIAN_BRIDGE_SECRET: ${YUELIAN_BRIDGE_SECRET:?Set YUELIAN_BRIDGE_SECRET}
+      YUELIAN_ACCEPT_REAL_DATA: ${YUELIAN_ACCEPT_REAL_DATA:-false}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?Set DEEPSEEK_API_KEY}
+      PORT: 8080
+      BIND_HOST: 0.0.0.0
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks: [database, edge]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  edge:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      YUELIAN_PUBLIC_HOST: ${YUELIAN_PUBLIC_HOST:?Set YUELIAN_PUBLIC_HOST}
+    ports: ["443:443", "80:80"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+volumes:
+  yuelian-db:
+  caddy-data:
+  caddy-config:
+networks:
+  database:
+    internal: true
+  edge:

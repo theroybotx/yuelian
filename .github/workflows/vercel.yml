@@ -1,0 +1,166 @@
+name: Vercel CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: ['**']
+    tags: ['release-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Required checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: yuelian-vercel-checks-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Locked dependency installation
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix server --ignore-scripts --no-audit --no-fund
+      - name: Static checks
+        run: npm run lint
+      - name: Existing unit and edge-contract tests
+        run: |
+          npm run test:unit
+          node --test tests/trial-worker.test.mjs
+      - name: Build Vercel artifact and test packaged adapter and release failures
+        run: |
+          npm run build:vercel
+          npm run test:vercel
+      - name: Existing full framework build
+        run: npm run build
+      - name: Retain commit-specific Vercel output manifest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vercel-manifest-${{ github.sha }}
+          path: .vercel/output/build-manifest.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  database_checks:
+    name: Isolated database acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # A disposable CI-only database, not the shared host or production database.
+    # Socket access keeps this trust-auth fixture off public TCP ports.
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        volumes:
+          - /tmp/yuelian-ci-pg:/var/run/postgresql
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: /tmp
+      PGUSER: postgres
+      YUELIAN_TEST_ADMIN: postgres
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install locked database test dependencies
+        run: npm ci --prefix server --ignore-scripts --no-audit --no-fund
+      - name: Initialize isolated acceptance roles and guarded socket path
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          test ! -e /tmp/.s.PGSQL.5432
+          test ! -L /tmp/.s.PGSQL.5432
+          test -S /tmp/yuelian-ci-pg/.s.PGSQL.5432
+          ln -s /tmp/yuelian-ci-pg/.s.PGSQL.5432 /tmp/.s.PGSQL.5432
+          docker exec "$POSTGRES_CONTAINER" psql -U postgres -v ON_ERROR_STOP=1 -c 'CREATE ROLE yuelian_security_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS; CREATE ROLE yuelian_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;'
+      - name: Existing real PostgreSQL acceptance
+        run: node --test tests/provision-trial-accounts.test.mjs
+
+  preview:
+    name: Deploy Preview
+    needs: [checks, database_checks]
+    if: github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_type == 'branch' && (vars.YUELIAN_RELEASE_BRANCH == '' || github.ref_name != vars.YUELIAN_RELEASE_BRANCH)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Do not cancel remote deploys halfway through. Newer commits supersede old
+    # queued runs through the live-ref check, not assumed FIFO ordering.
+    concurrency:
+      group: yuelian-vercel-preview
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install target artifact test dependencies from locks
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix server --ignore-scripts --no-audit --no-fund
+      - name: Install pinned deployment tool in ephemeral runner directory
+        run: npm install --prefix "$RUNNER_TEMP/vercel-cli" --no-save --package-lock=false --no-audit --no-fund vercel@65.14.0
+      - name: Build and deploy only the tested current commit to Preview
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result == 'success' && needs.database_checks.result == 'success' && 'success' || 'failure' }}
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: prj_sClf94SbvxJ4cS3Etv6EnrQ9OrXR
+          YUELIAN_RELEASE_BRANCH: ${{ vars.YUELIAN_RELEASE_BRANCH }}
+        run: VERCEL_CLI="$RUNNER_TEMP/vercel-cli/node_modules/.bin/vercel" node scripts/vercel-release.mjs preview
+
+  production:
+    name: Deploy Production
+    needs: [checks, database_checks]
+    if: github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_protected && ((vars.YUELIAN_RELEASE_BRANCH != '' && github.ref_type == 'branch' && github.ref_name == vars.YUELIAN_RELEASE_BRANCH) || startsWith(github.ref, 'refs/tags/release-v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: yuelian-vercel-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install target artifact test dependencies from locks
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix server --ignore-scripts --no-audit --no-fund
+      - name: Install pinned deployment tool in ephemeral runner directory
+        run: npm install --prefix "$RUNNER_TEMP/vercel-cli" --no-save --package-lock=false --no-audit --no-fund vercel@65.14.0
+      - name: Stage, verify and promote the current forward-only production release
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result == 'success' && needs.database_checks.result == 'success' && 'success' || 'failure' }}
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: prj_sClf94SbvxJ4cS3Etv6EnrQ9OrXR
+          YUELIAN_RELEASE_BRANCH: ${{ vars.YUELIAN_RELEASE_BRANCH }}
+          YUELIAN_PRODUCTION_ORIGIN: ${{ vars.YUELIAN_PRODUCTION_ORIGIN }}
+        run: VERCEL_CLI="$RUNNER_TEMP/vercel-cli/node_modules/.bin/vercel" node scripts/vercel-release.mjs production

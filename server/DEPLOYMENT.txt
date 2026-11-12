@@ -1,0 +1,73 @@
+约练权限后台：Mac 临时部署 / 后续迁移至 5090
+
+这是约练后端的权限与业务服务，不是独立用户产品。
+2026-11-01 主站现有业务及 AI 入口统一接入本服务，业务资料不存浏览器。当前运行库由 Roy 指定为开发测试库，固定 Mock 账号也使用实际业务会话和 RLS。
+2026-11-01 已移除另做的权限工作台；测试用例仅作为开发审阅文档。
+Roy 于 2026-11-01 先授权验收，后明确要求修复并上线；继续在 Mac 使用 DeepSeek。
+
+运行环境
+- Node 22.13+；当前使用 Mac 已安装的 Node 24。
+- PostgreSQL 17 独立数据库 yuelian_security。
+- 迁移所有者 yuelian_security_owner：NOLOGIN。
+- 应用账号 yuelian_runtime：LOGIN、非超级用户、非所有者、无 BYPASSRLS、无创建角色/数据库权限。
+- 服务只监听 127.0.0.1:18797；Tailscale Funnel 的 /yuelian-security 路径转发到该服务。
+- Sites 通过服务端签名请求访问后台。签名包含方法、路径、正文摘要、身份、时间与一次性 nonce。
+- Sites桥接必须使用redirect:manual并拒绝3xx；Workers不支持redirect:error。发布后须用真实Sites登录验证status/workspaces，不能只验证匿名401和两端独立可达。
+- workspace_bridge_failed日志只记录请求编号、阶段、上游状态与受限异常类型，不含业务正文/身份/URL/凭据；写入连接失败不自动重试。
+- 外层 Sites 身份取自已验证登录头；真正业务身份由独立数据库账号与可撤销会话解析，不能由浏览器正文或模型指定。
+- 账号使用用户名/密码注册登录，退出只撤销约练会话。邀请绑定已注册约练用户名对应的账号ID，不使用自填邮箱；尚未新增手机号/微信登录。
+
+本地私有配置
+目录：~/.local/state/yuelian-security（0700）
+runtime.env（0600）：数据库密码、独立桥接密钥、沿用的 DeepSeek Key。
+launchd：~/Library/LaunchAgents/com.jarvisxiao.yuelian-security.plist。
+Sites 运行时设置：YUELIAN_BACKEND_URL、YUELIAN_BRIDGE_SECRET（secret）。
+当前部署模式 YUELIAN_ACCEPT_REAL_DATA=true：按 Roy 最新要求启用业务写入；Sites 仍仅 Roy 可访问。
+验收设计与结果分别见 tests/FULL-TEST-PLAN.md、output/full-20261101/REPORT.md；旧 VERIFICATION.txt 是历史记录。需要维护时可设 false 并重启来关闭写入。
+
+数据库初始化
+001_permissions.sql 只用于新数据库，运行在迁移所有者身份下；002 补充 nonce 清理列权限；003 增加常规开放时间、回访、撤销记录和受 RLS 约束的删除策略；004 增加待核对提交、每操作者每空间唯一未核对记录及 cancelled 状态。
+005 增加 private.accounts/private.sessions 及账号ID绑定邀请；006 增加真实提交时间，历史未知值保持null。
+既有004库只使用 server/scripts/upgrade-accounts.mjs 做有备份的增量升级，不重建业务表；命令与演练证据见 README.txt。
+已应用迁移不可改写；后续变更必须另加编号 SQL。
+创建应用角色与设置密码在私有安装步骤完成，密码不得写入迁移 SQL。
+业务表使用 RLS；少量 SECURITY DEFINER 函数使用固定 search_path 和全限定对象名，仅返回授权事实、可约布尔值，或执行受限邀请/空间初始化。
+模型和浏览器没有数据库密码、Shell、文件或任意 SQL 工具。
+后台启动检查数据库角色，拒绝以表所有者或特权身份运行。
+
+上线范围与限制
+- 教练空间、细分助教权限、学员绑定、定向邀请与撤销、记录按类别隔离。
+- 联系方式、私人教练备注、账本拆成独立记录；共享课程不开放其他学员资料。
+- 课时查询、排课和多任务草稿使用授权后的服务端数据。
+- 一次提交使用事务及空间锁；保留同一草稿的幂等结果，权限变化后不能读取旧结果。
+- 浏览器确认的提交使用 submission=true；后端 snapshot 返回当前操作者的待核对回执。回执仅含固定操作标签，不含历史私人字段。acknowledge 将未执行提交永久取消，或确认已完成回执。
+- pg Pool 空闲错误由安全日志记录，事务断连丢弃连接；不自动重放写入，恢复后以原草稿ID核对结果。
+- AI 生成阶段不持有数据库事务；返回后重新确认当前权限和数据版本。
+- 不开放任意导出、文件下载、外部通知、支付；未实现入口拒绝访问。
+- 不声称已提供完整小班业务流程；权限测试另有共同课程资料可见性用例。
+- Mac、网络、Tailscale 与 PostgreSQL 需持续在线；不是高可用部署。
+- 备份脚本使用 PostgreSQL custom dump 和 AES-256-GCM 加密；密钥存放在同机私有目录。尚无异地备份，不能防止整机丢失；本轮已在独立恢复库验证加密备份可恢复及RLS，证据 output/full-20261101/backup/results.json。
+- 审阅版网页目前保留 Roy 单人访问范围，未邀请或发送消息给其他人。
+
+测试状态
+本轮完整设计含164项，覆盖账号、功能、UI、单元、安全、恢复和发布，见 tests/FULL-TEST-PLAN.md。
+可复验入口见 tests/full/README.md；最终实际结果与发布回执见 output/full-20261101/REPORT.md。
+原48项 /review/security 及 public/security-cases.json 保留为历史快照，不能充当本轮全量结果。
+编译、SQL安装与服务启动不等于验收；真实模型、真实数据库、受控API和线上访问证据分开。
+所有破坏性测试仅在 yuelian_acceptance_*；运行开发库不整体清空，保留用户体验数据。
+
+
+回退
+必要时先将后台 YUELIAN_ACCEPT_REAL_DATA=false 并重启，再恢复已知版本网页及后台代码。保留004迁移及提交记录，不通过数据库降级删除恢复证据。保留数据库、审计和备份；不回滚或删除业务数据。V7是历史浏览器演示，不能当作已启用权限的业务回退。
+停止服务：launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.jarvisxiao.yuelian-security.plist
+只移除本模块路由：tailscale funnel --https=443 --set-path=/yuelian-security off
+禁止 tailscale funnel reset；其他路径属于现有独立业务。
+保留数据库、私有配置、审计和备份，不以删除数据作为回退方法。
+
+2026-11-01 账号与 Mock 测试环境更新
+Roy 明确将现有 yuelian_security 定义为开发测试库。此前“正式库”指运行中的部署，不代表生产业务数据；未来清空须等 Roy 确认验收。误建的“谢导”及其 Roy 学员档案按用户指示删除，清理前已加密备份。
+新增三位示例教练（周、林、陈）、四个虚构学员姓名（小林、小宇、安安、小舟）和一位助教。小林在两位教练下分别有独立档案；小舟未绑定，用于邀请测试。所有联系人和课时均为测试资料。
+YUELIAN_ENVIRONMENT=test 与私有 YUELIAN_TEST_ACCESS_FILE 同时配置后，指定真实 Sites 控制账号才可使用固定 Mock 快捷登录。POST /v1/auth/session 接受固定 testPersona，通过数据库建立可撤销的业务会话；旧 URL 身份模拟路径关闭。默认生产模式拒绝 Mock 登录，普通用户不能列举或模拟身份，业务读写仍执行 RLS 与细分授权。
+登录与退出使用约练数据库账号及独立会话，不调用 GPT 退出。Sites 仅是私有预览站外层门禁。本轮站内使用用户名/密码，未接入微信或手机号登录。学员建档不自动绑定账号；教练向已注册的约练用户名生成24小时口令，固定接收账号接受后绑定原档案。已绑定档案不能改邀另一人；重新邀请撤回旧待接受口令，不自动发送外部消息。
+前台不再暴露“工作空间”：教练注册自动建立教学资料；学员不出现执教或团队管理入口，多教练时显示“我的教练”。账号可拥有多个学员/助教/教练关系，菜单只按当前关系权限显示；后台按教练团队隔离。重复初始化教练资料复用已有资料，学员直接创建教练资料返回403。
+清理与数据证据：output/accounts-20261101/cleanup-result.json、live-mock-data.json；安全备份 yuelian-2026-10-31T18-26-38-697Z.pgdump.aesgcm。原始误建数据只存在加密备份及历史测试记录，未保留为当前可用档案。

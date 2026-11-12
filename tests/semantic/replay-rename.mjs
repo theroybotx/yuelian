@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync,existsSync,mkdirSync} from 'node:fs';
+import {dirname} from 'node:path';
+import {createHash} from 'node:crypto';
+import {normalizeGeneratedPlan,scopeInput,validatePlan} from '../../lib/assistant.ts';
+import {cases,requestOf} from './dataset.mjs';
+import {evaluate} from './oracle.mjs';
+
+const [sourcePath,outputPath]=process.argv.slice(2);
+if(!outputPath)throw Error('Usage: node --experimental-transform-types tests/semantic/replay-rename.mjs original-A15.json new-evidence.json');
+if(existsSync(outputPath))throw Error('Refusing to overwrite replay evidence');
+const sha=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
+const original=JSON.parse(readFileSync(sourcePath,'utf8')),testCase=cases.find(c=>c.id==='SEM-A15');
+assert.equal(original.id,testCase.id);assert.equal(original.status,'failed');
+const raw=original.calls.at(-1).providerOutput;
+assert.equal(raw.steps[0].operation.studentName,null);assert.equal(raw.steps[0].operation.name,'小安');
+const normalized=normalizeGeneratedPlan(structuredClone(raw));
+const expected=structuredClone(raw);expected.steps[0].operation.studentName='小安';expected.steps[0].operation.name=null;
+assert.deepEqual(normalized,expected,'Only the two documented alias fields may change');
+const validated=validatePlan(normalized,scopeInput(requestOf(testCase)));
+const verdict=evaluate(testCase,{plan:validated});assert.equal(verdict.passed,true);
+const result={kind:'exact-original-provider-response-replay',caseId:testCase.id,sourcePath,sourceSha256:sha(sourcePath),implementationSha256:sha('lib/assistant.ts'),originalStatus:original.status,normalizationChangedOnly:['studentName','name'],modelCalls:0,productionDataTouched:false,verdict,plan:validated};
+mkdirSync(dirname(outputPath),{recursive:true});writeFileSync(outputPath,JSON.stringify(result,null,2));console.log(JSON.stringify({outputPath,passed:verdict.passed,strictPassed:verdict.strictPassed,modelCalls:0}));

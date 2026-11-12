@@ -1,0 +1,24 @@
+{
+  "name": "yuelian-trial",
+  "account_id": "07e8a4b09287f3ce9c12d797105bf452",
+  "main": "worker.ts",
+  "compatibility_date": "2026-05-15",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../.cloudflare/assets",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "vars": {
+    "YUELIAN_BACKEND_URL": "http://127.0.0.1:18797"
+  },
+  "vpc_services": [
+    {
+      "binding": "YUELIAN_BACKEND",
+      "service_id": "01a199df-d580-7c31-956d-5882481ac045"
+    }
+  ]
+}
