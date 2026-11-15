@@ -174,3 +174,32 @@ test('coach overall monthly summary needs no selected student while student cont
  assert.equal(validateDraft(d,i).studentId,null);
  assert.deepEqual(i.context.students.map(s=>s.id),['roy']);
 });
+
+const localRuntime={endpoint:'http://127.0.0.1:8080/v1/responses',temperature:0,config:{provider:'strata',model:'qwen3.8-flash-next-unsloth-ud-q4_k_xl',modelLabel:'千问 3.8 Flash Next · 本地 Q4',reasoning:'medium',effectiveReasoning:'medium',fastSupported:false}};
+test('local malformed links get at most one regeneration on the same deadline and never a cloud request',async()=>{
+ const good=plan([draft({intent:'add-student',studentName:'新学员'}),draft({intent:'credit',studentId:null,amount:2})]);good.steps[1].studentRef='s1';good.steps[1].dependsOn=['s1'];
+ const bad=structuredClone(good);bad.steps[1].dependsOn=[];const requests:Array<{url:unknown,init:RequestInit}>=[];
+ const send:typeof fetch=async(url,init)=>{requests.push({url,init:init!});return reply(bad);};
+ await assert.rejects(()=>interpret(input(),'',send,undefined,localRuntime),{code:'INVALID_PLAN'});assert.equal(requests.length,2);assert.equal(requests[0].init.signal,requests[1].init.signal);
+ for(const r of requests){assert.equal(r.url,localRuntime.endpoint);assert.equal(new Headers(r.init.headers).has('Authorization'),false);assert.equal(JSON.parse(String(r.init.body)).temperature,0);}
+});
+test('local output cannot widen student authorization or silently return an invalid amendment',async()=>{
+ const i=scopeInput({text:'改成90分钟',context:{...context,role:'student',selfStudentId:'roy'}}),base=plan([draft({studentId:'roy',studentName:null})]),before=JSON.stringify(base);let calls=0;
+ const send:typeof fetch=async()=>{calls++;return reply(plan([draft({studentId:'wang'})]));};
+ await assert.rejects(()=>interpret(i,'',send,undefined,localRuntime),{code:'INVALID_DRAFT'});assert.equal(calls,1);
+ await assert.rejects(()=>interpretAmendment(i,base,'',async()=>reply({status:'patched',explanation:'不合法',question:null,patches:[{stepId:'s1',changes:[{field:'studentId',value:'wang',evidence:'改成90分钟'}]}]}),undefined,localRuntime),{code:'INVALID_AMENDMENT'});assert.equal(JSON.stringify(base),before);
+});
+test('local generation uses the supplied server runtime without cloud authorization',async()=>{
+ let request!: {url:unknown,init:RequestInit};
+ const result=await interpret(input(),'',async(url,init)=>{request={url,init:init!};return reply(plan(),{model:'local-actual'});},undefined,localRuntime);
+ assert.equal(request.url,localRuntime.endpoint);assert.equal(new Headers(request.init.headers).has('Authorization'),false);
+ const body=JSON.parse(String(request.init.body));assert.equal(body.model,localRuntime.config.model);assert.deepEqual(body.reasoning,{effort:'medium'});assert.equal(body.temperature,0);assert.equal(body.text.format.strict,true);
+ assert.equal(result.meta.provider,'strata');assert.equal(result.meta.actualModel,'local-actual');assert.equal(result.meta.effectiveReasoning,'medium');
+});
+test('local amendment uses the same runtime and preserves untouched free text',async()=>{
+ const base=plan(),before=JSON.stringify(base);let request!: {url:unknown,init:RequestInit};
+ const r=await interpretAmendment(scopeInput({text:'改成90分钟',context}),base,'',async(url,init)=>{request={url,init:init!};return reply({status:'patched',explanation:'待核对',question:null,patches:[{stepId:'s1',changes:[{field:'duration',value:90,evidence:'改成90分钟'}]}]},{model:'local-actual'});},undefined,localRuntime);
+ assert.equal(request.url,localRuntime.endpoint);assert.equal(new Headers(request.init.headers).has('Authorization'),false);
+ const body=JSON.parse(String(request.init.body));assert.equal(body.model,localRuntime.config.model);assert.deepEqual(body.reasoning,{effort:'medium'});assert.equal(body.temperature,0);assert.equal(body.text.format.strict,true);assert.equal(body.max_output_tokens,5000);
+ assert.equal(r.meta.provider,'strata');assert.equal(r.meta.actualModel,'local-actual');assert.equal(r.plan.steps[0].operation.duration,90);assert.equal(JSON.stringify(base),before);
+});

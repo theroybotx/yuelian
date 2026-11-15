@@ -11,11 +11,13 @@ import {createTransportAuthenticator,preauthKey} from './transport-auth.mjs';
 import {modelContext,inferPlan,validatePlan,authorizePlan,pendingSubmission,acknowledgeSubmission,savePlan,commitPlan,undoPlan,checkRevisions,authorizedRecords,allowedActions,today} from './plans.mjs';
 
 import {generationSnapshot,generateResponse,saveGeneration} from './generation.mjs';
+import {modelSettings,createModelRunner} from './model.mjs';
 
 const verifyTransport=createTransportAuthenticator({sitesSecret:process.env.YUELIAN_BRIDGE_SECRET,standaloneSecret:process.env.YUELIAN_STANDALONE_BRIDGE_SECRET});
 const enabled=process.env.YUELIAN_ACCEPT_REAL_DATA==='true';
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const rates=new Map(),modelRates=new Map();
+const runModel=createModelRunner();
 const selection=z.object({selectedStudent:uuid.optional(),selectedLesson:uuid.optional(),messageId:uuid.optional(),month:z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional()}).strict();
 // Shared schemas and the service use separate installed Zod copies. Both are
 // trusted validators; constructor identity alone misses valid input failures.
@@ -33,7 +35,7 @@ function limitRequests(key){
  const rate=rates.get(key)||{count:0,until:now+60000};if(++rate.count>40)throw new HttpError(429,'操作较频繁，请稍后再试。','RATE_LIMIT');rates.set(key,rate);
 }
 async function route(method,path,body,identity){
- if(method==='GET'&&path==='/v1/status')return {backend:'postgresql',mode:enabled?'trial':'review',model:'DeepSeek V4.1 Flash',configured:!!process.env.DEEPSEEK_API_KEY,today:today(),identity:{id:identity.id,name:identity.name,username:identity.username,registrationRole:identity.registrationRole},testing:authTestingStatus(identity),capabilities};
+ if(method==='GET'&&path==='/v1/status'){const model=modelSettings();return {backend:'postgresql',mode:enabled?'trial':'review',model:model.runtime.config.modelLabel,configured:model.configured,today:today(),identity:{id:identity.id,name:identity.name,username:identity.username,registrationRole:identity.registrationRole},testing:authTestingStatus(identity),capabilities};}
  if(method!=='GET'&&!enabled)throw new HttpError(503,'权限模块已部署为审阅版。测试用例待审阅，业务写入尚未开放。','REVIEW_MODE');
  if(path==='/v1/workspaces'&&method==='GET'){
   const workspaces=await transaction(identity,null,async c=>(await c.query('SELECT w.id,w.name,m.role,m.permissions,m.student_id,m.revision FROM app.workspaces w JOIN app.memberships m ON m.workspace_id=w.id WHERE m.user_id=$1 AND m.active ORDER BY w.created_at',[identity.id])).rows);
@@ -66,7 +68,7 @@ async function route(method,path,body,identity){
    const snapshot=await transaction(identity,w,(c,member)=>generationSnapshot(c,member,identity,w,input));
    const now=Date.now();for(const [key,r] of modelRates)if(r.until<now&&!r.busy)modelRates.delete(key);
    const usage=modelRates.get(identity.id)||{count:0,until:now+60000,busy:false};if(usage.busy||usage.count>=8)throw new HttpError(429,'请等待当前整理完成，或稍后重试。','MODEL_RATE_LIMIT');usage.count++;usage.busy=true;modelRates.set(identity.id,usage);
-   let response;try{response=await generateResponse(snapshot);}finally{usage.busy=false;}
+   const response=await runModel(snapshot,usage,generateResponse);
    return transaction(identity,w,(c,member)=>saveGeneration(c,member,identity,w,input,snapshot,response));
   }
   return await transaction(identity,w,async(c,member)=>{

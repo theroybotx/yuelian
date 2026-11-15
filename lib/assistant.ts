@@ -4,6 +4,8 @@ export { matchingVenues, venueNames } from './plan-amendment.ts';
 export const MODEL='deepseek-flash';
 // DeepSeek accepts Medium but maps it to High; its API has no Fast service tier.
 export const CONFIG={provider:'deepseek',model:MODEL,modelLabel:'DeepSeek V4.1 Flash',reasoning:'medium',effectiveReasoning:'high',fastSupported:false} as const;
+export type ModelRuntime={endpoint:string,config:{provider:string,model:string,modelLabel:string,reasoning:string,effectiveReasoning:string,fastSupported:boolean},temperature?:number};
+export const DEFAULT_RUNTIME:ModelRuntime={endpoint:'https://api.deepseek.com/responses',config:CONFIG};
 const id=z.string().min(1).max(100),date=z.string().date(),time=z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),short=z.string().max(300),note=z.string().max(800);
 export const Draft=z.object({
  intent:z.enum(['booking','record','availability','add-student','edit-student','credit','practice','message-decision','balance','summary','followup','add-venue','edit-venue','edit-base','edit-lesson','resolve-message','edit-practice','clarification']),title:short,explanation:note,
@@ -156,13 +158,13 @@ async function readModelPayload(response:Response,deadline:AbortSignal,signal:Ab
  checkModelCancellation(deadline,signal,amendment);
  return payload;
 }
-export async function interpret(input:AssistantInput,key:string,send:typeof fetch=fetch,signal?:AbortSignal){
+export async function interpret(input:AssistantInput,key:string,send:typeof fetch=fetch,signal?:AbortSignal,runtime:ModelRuntime=DEFAULT_RUNTIME){
  const deadline=signal?AbortSignal.any([signal,AbortSignal.timeout(45000)]):AbortSignal.timeout(45000);
  for(let attempt=0;attempt<2;attempt++){
  let response:Response;
- try{response=await send('https://api.deepseek.com/responses',{
-  method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},signal:deadline,
-  body:JSON.stringify({model:MODEL,reasoning:{effort:'medium'},max_output_tokens:10000,instructions:INSTRUCTIONS+(attempt?'\n重新核对每一步关联：前一次生成的依赖关系不完整。所有 Ref 必须指向前面的新增档案步骤，dependsOn 必须包含该步骤，操作内对应真实 ID 必须为 null。不要改变用户要求或放宽授权范围。':''),input:JSON.stringify(input),text:{format:{type:'json_schema',name:'yuelian_plan',strict:true,schema:outputSchema}}}),
+ try{response=await send(runtime.endpoint,{
+  method:'POST',headers:{...(key?{Authorization:`Bearer ${key}`}:{ }),'Content-Type':'application/json'},signal:deadline,
+  body:JSON.stringify({model:runtime.config.model,reasoning:{effort:runtime.config.reasoning},...(runtime.temperature!==undefined?{temperature:runtime.temperature}:{}),max_output_tokens:10000,instructions:INSTRUCTIONS+(attempt?'\n重新核对每一步关联：前一次生成的依赖关系不完整。所有 Ref 必须指向前面的新增档案步骤，dependsOn 必须包含该步骤，操作内对应真实 ID 必须为 null。不要改变用户要求或放宽授权范围。':''),input:JSON.stringify(input),text:{format:{type:'json_schema',name:'yuelian_plan',strict:true,schema:outputSchema}}}),
  });}catch{if(signal?.aborted)throw new AssistantError('CANCELLED','本次整理已取消。',499);throw new AssistantError('MODEL_TIMEOUT','模型暂时没有响应，请稍后重试。输入已保留。',504);}
  if(!response.ok){const code=response.status;if(code===400)throw new AssistantError('MODEL_CONFIGURATION','AI 请求格式不兼容，需要管理员修复接口配置。没有执行任何操作。',502);if(code===402)throw new AssistantError('MODEL_QUOTA','模型 API 余额不足，请管理员充值后重试。',402);throw new AssistantError(code===429?'MODEL_BUSY':'MODEL_UNAVAILABLE',code===429?'模型请求频率受限，请稍后重试。':code===401||code===403?'模型授权暂不可用，需要站点管理员检查 API 配置。':'模型服务暂时不可用，请稍后重试。',code===429?429:502);}
  const payload=await readModelPayload(response,deadline,signal);
@@ -170,7 +172,7 @@ export async function interpret(input:AssistantInput,key:string,send:typeof fetc
  const content=(payload.output||[]).flatMap(o=>o.type==='message'?(o.content||[]):[]);
  if(content.some(c=>c.type==='refusal'))throw new AssistantError('REFUSED','模型无法处理这句话，请换一种描述或使用直接操作。',422);
  let raw;try{raw=JSON.parse(content.filter(c=>c.type==='output_text').map(c=>c.text).join(''));}catch{throw new AssistantError('INVALID_RESPONSE','模型没有返回可核对的草稿，请重试。');}
-  try{return {plan:validatePlan(normalizeGeneratedPlan(raw),input),meta:{...CONFIG,actualModel:payload.model||null,generationAttempts:attempt+1}};}
+  try{return {plan:validatePlan(normalizeGeneratedPlan(raw),input),meta:{...runtime.config,actualModel:payload.model||null,generationAttempts:attempt+1}};}
  catch(error){
   // One bounded regeneration for malformed links only. Never relax reference,
   // membership or action validation; both calls share the same 45s deadline.
@@ -193,15 +195,15 @@ status=patched时question=null，patches只含明确修改。status=clarificatio
 已有资料ID只取context提供的真实ID。studentId/venueId仅在用户明确说出唯一可见姓名/场地名时替换；evidence需包含该姓名/场地名。场地可用去掉“网球场/网球中心/网球训练中心/网球馆/网球俱乐部”这类通用后缀后的唯一简称，简称至少两个字；不能把地区、方向或专名省掉，同简称多场地先澄清。用户明确“清空场地选择”时可将booking/availability的venueId设为null，其他内容保留；不能以此改变venueRef，不能清空学员身份。用户说“老地方/还是原来那儿”等，context.understanding.resolved中venueBasis=latest-completed-lesson且有sourceLessonId，来源课属于本步骤学员的最新已完成课程，可用该venueId；无此依据就澄清。若存在对应studentRef或venueRef不能替换ID。学生只指向本人；其他实体目标固定，不能替换lessonId/messageId/ruleId/practiceId/followupId。不明对象或同名对象先追问，不猜测。未知姓名保留studentName供人工选择，不冒用其他学员。
 所有自由文本按用户原文保留，不润色或总结；数值日期时间按字段类型转换（下午四点=16:00，90分钟=90）。不自行查询余额、不回答计算结果、不声称已保存。使用简洁中文解释待核对的变化。`;
 
-export async function interpretAmendment(input:AssistantInput,basePlan:OperationPlan,key:string,send:typeof fetch=fetch,signal?:AbortSignal){
+export async function interpretAmendment(input:AssistantInput,basePlan:OperationPlan,key:string,send:typeof fetch=fetch,signal?:AbortSignal,runtime:ModelRuntime=DEFAULT_RUNTIME){
  // Validate the authoritative base before spending a model call. No model can
  // repair a stale/unauthorized plan by changing its graph or action type.
  const scoped=scopeInput(input),base=validatePlan(basePlan,scoped);
  const deadline=signal?AbortSignal.any([signal,AbortSignal.timeout(45000)]):AbortSignal.timeout(45000);
  let response:Response;
- try{response=await send('https://api.deepseek.com/responses',{
-  method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},signal:deadline,
-  body:JSON.stringify({model:MODEL,reasoning:{effort:'medium'},max_output_tokens:5000,instructions:AMENDMENT_INSTRUCTIONS,input:JSON.stringify({input:scoped,basePlan:base}),text:{format:{type:'json_schema',name:'yuelian_amendment',strict:true,schema:amendmentOutputSchema}}}),
+ try{response=await send(runtime.endpoint,{
+  method:'POST',headers:{...(key?{Authorization:`Bearer ${key}`}:{ }),'Content-Type':'application/json'},signal:deadline,
+  body:JSON.stringify({model:runtime.config.model,reasoning:{effort:runtime.config.reasoning},...(runtime.temperature!==undefined?{temperature:runtime.temperature}:{}),max_output_tokens:5000,instructions:AMENDMENT_INSTRUCTIONS,input:JSON.stringify({input:scoped,basePlan:base}),text:{format:{type:'json_schema',name:'yuelian_amendment',strict:true,schema:amendmentOutputSchema}}}),
  });}catch{if(signal?.aborted)throw new AssistantError('CANCELLED','本次整理已取消。',499);throw new AssistantError('MODEL_TIMEOUT','模型暂时没有响应，请稍后重试。原草稿已保留。',504);}
  if(!response.ok){const code=response.status;if(code===400)throw new AssistantError('MODEL_CONFIGURATION','AI 请求格式不兼容，需要管理员修复接口配置。没有执行任何操作。',502);if(code===402)throw new AssistantError('MODEL_QUOTA','模型 API 余额不足，请管理员充值后重试。',402);throw new AssistantError(code===429?'MODEL_BUSY':'MODEL_UNAVAILABLE',code===429?'模型请求频率受限，请稍后重试。':code===401||code===403?'模型授权暂不可用，需要站点管理员检查 API 配置。':'模型服务暂时不可用，请稍后重试。',code===429?429:502);}
  const payload=await readModelPayload(response,deadline,signal,true);
@@ -211,6 +213,6 @@ export async function interpretAmendment(input:AssistantInput,basePlan:Operation
  let raw;try{raw=JSON.parse(content.filter(c=>c.type==='output_text').map(c=>c.text).join(''));}catch{throw new AssistantError('INVALID_RESPONSE','模型没有返回可核对的修订，原草稿已保留。');}
  try{
   const merged=mergeAmendment(raw,base,scoped);
-  return {plan:validatePlan(merged.plan,scoped),meta:{...CONFIG,actualModel:payload.model||null,generationAttempts:1,amendment:merged.amendment}};
+  return {plan:validatePlan(merged.plan,scoped),meta:{...runtime.config,actualModel:payload.model||null,generationAttempts:1,amendment:merged.amendment}};
  }catch(error){if(error instanceof AmendmentError)throw new AssistantError(error.code,error.message,error.status);throw error;}
 }

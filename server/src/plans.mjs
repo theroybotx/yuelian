@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {requireModel} from './model.mjs';
 import {interpret,scopeInput,validatePlan} from '../shared/assistant.ts';
 import {HttpError,requireAction,requirePermission,schemas,can} from './policy.mjs';
 import {getRecord,insertRecord,updateRecord,audit} from './db.mjs';
@@ -38,7 +39,7 @@ export async function modelContext(c,member,identity,w,text,selection={},plan=nu
  const input=scopeInput({text,context:{currentCoachName:currentCoach.name,today:today(),role:member.role==='student'?'student':'coach',...(member.student_id?{selfStudentId:member.student_id}:{}),month:selection.month||today().slice(0,7),selectedStudent:selection.selectedStudent||null,selectedLesson:selection.selectedLesson||null,messageId:selection.messageId||null,students,lessons,messages,venues:byKind('venue').map(v=>({id:v.id,...v.payload})),followupIds,allowedActions:actions,rules:byKind('availability').map(r=>({id:r.id,...r.payload,venue:r.venue_id})),practices:member.role==='student'?byKind('practice').map(r=>({id:r.id,topic:r.payload.topic,date:r.payload.date,shared:r.visibility==='shared'})):[],followups:actions.includes('followup')?byKind('followup').map(r=>({id:r.id,student:r.student_id,text:r.payload.text})):[],settings:byKind('settings')[0]?.payload}});
  return {input,revisions:Object.fromEntries(allRows.map(r=>[r.id,r.revision]))};
 }
-export async function inferPlan(input){if(!process.env.DEEPSEEK_API_KEY)throw new HttpError(503,'模型尚未配置。','MODEL_NOT_CONFIGURED');return interpret(input,process.env.DEEPSEEK_API_KEY);}
+export async function inferPlan(input){const {key,runtime}=requireModel();return interpret(input,key,fetch,undefined,runtime);}
 export function authorizePlan(member,plan){for(const step of plan.steps)if(step.operation.intent!=='clarification')requireAction(member,step.operation.intent);}
 export async function checkRevisions(c,w,plan,revisions){
  if(plan.steps.some(s=>s.operation.intent==='edit-base')){const r=(await c.query("SELECT id,revision FROM app.records WHERE workspace_id=$1 AND kind='settings'",[w])).rows[0];if(r&&revisions[r.id]!==r.revision)throw new HttpError(409,'开放时间已有更新，请刷新后核对。','STALE_PLAN');}

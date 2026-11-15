@@ -4,7 +4,56 @@ import {Draft,scopeInput,validatePlan} from '../lib/assistant.ts';
 import {checkReviewedShape,clarificationPlan,understandingHint,applyResolution,generationSnapshot,generateResponse,saveGeneration} from '../server/src/generation.mjs';
 import {commitPlan,today} from '../server/src/plans.mjs';
 
+async function withProvider(t,provider,run){
+ const before={YUELIAN_MODEL_PROVIDER:process.env.YUELIAN_MODEL_PROVIDER,DEEPSEEK_API_KEY:process.env.DEEPSEEK_API_KEY};
+ process.env.YUELIAN_MODEL_PROVIDER=provider;process.env.DEEPSEEK_API_KEY='unit-cloud-key-must-not-reach-local';
+ try{return await run();}finally{t.mock.restoreAll();for(const [key,value] of Object.entries(before)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
+}
+test('G2 server generation selects local runtime despite a retained cloud key and forged browser fields',async t=>withProvider(t,'strata',async()=>{
+ const c=client(),s=await generationSnapshot(c,member,identity,workspace,{text:'给小林明天下午三点约一小时',selection:{},provider:'deepseek',endpoint:'https://attacker.invalid'});
+ const calls=[];
+ t.mock.method(globalThis,'fetch',async(url,init)=>{calls.push({url,init});return Response.json({status:'completed',model:'local-actual',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(plan())}]}]});});
+ const r=await generateResponse(s);assert.equal(calls.length,1);assert.equal(calls[0].url,'http://127.0.0.1:8080/v1/responses');assert.equal(new Headers(calls[0].init.headers).has('Authorization'),false);
+ const body=JSON.parse(calls[0].init.body);assert.equal(body.model,'qwen3.8-flash-next-unsloth-ud-q4_k_xl');assert.deepEqual(body.reasoning,{effort:'medium'});assert.equal(body.temperature,0);assert.equal(body.input.includes('attacker.invalid'),false);
+ assert.equal(r.meta.provider,'strata');assert.equal(r.meta.actualModel,'local-actual');assert.equal(c.calls.some(call=>/^(?:INSERT INTO|UPDATE) app\.records/.test(call.sql)),false);
+}));
+
+test('G2 server amendment selects local runtime without a cloud key',async t=>withProvider(t,'strata',async()=>{
+ delete process.env.DEEPSEEK_API_KEY;
+ const s=await snapshot({}, {text:'改成90分钟',selection:{},taskId:'saved-task'}),before=JSON.stringify(s.base),calls=[];
+ t.mock.method(globalThis,'fetch',async(url,init)=>{calls.push({url,init});return Response.json({status:'completed',model:'local-actual',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({status:'patched',explanation:'待核对',question:null,patches:[{stepId:'s1',changes:[{field:'duration',value:90,evidence:'改成90分钟'}]}]})}]}]});});
+ const r=await generateResponse(s);assert.equal(calls.length,1);assert.equal(calls[0].url,'http://127.0.0.1:8080/v1/responses');assert.equal(new Headers(calls[0].init.headers).has('Authorization'),false);
+ assert.equal(r.meta.provider,'strata');assert.equal(r.meta.actualModel,'local-actual');assert.equal(r.plan.steps[0].operation.duration,90);assert.equal(r.plan.steps[0].operation.note,s.base.steps[0].operation.note);assert.equal(JSON.stringify(s.base),before);
+}));
+
 const identity={id:'account-owner',name:'测试教练',requestId:'request-test'},workspace='scope-a';
+
+const failureCases=[
+ ['bad-response-json',()=>new Response('private malformed JSON'),'INVALID_RESPONSE'],
+ ['bad-output-json',()=>Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'not JSON'}]}]}),'INVALID_RESPONSE'],
+ ['refusal',()=>Response.json({status:'completed',output:[{type:'message',content:[{type:'refusal'}]}]}),'REFUSED'],
+ ['incomplete',()=>Response.json({status:'incomplete',output:[]}),'INCOMPLETE'],
+ ['network',()=>{throw Error('private network details');},'MODEL_TIMEOUT'],
+ ...[400,401,402,403,429,503].map(status=>[`http-${status}`,()=>new Response('private provider response',{status}),status===400?'MODEL_CONFIGURATION':status===402?'MODEL_QUOTA':status===429?'MODEL_BUSY':'MODEL_UNAVAILABLE']),
+];
+for(const [name,response,code] of failureCases)for(const amendment of [false,true])test(`G2 local ${amendment?'amendment':'generation'} ${name} fails closed without fallback`,async t=>withProvider(t,'strata',async()=>{
+ const s=amendment?await snapshot():await generationSnapshot(client(),member,identity,workspace,{text:'给小林约课',selection:{}}),before=JSON.stringify(s),calls=[];
+ t.mock.method(globalThis,'fetch',async(url,init)=>{calls.push({url,init});return response();});
+ await assert.rejects(()=>generateResponse(s),e=>e.code===code&&!e.message.includes('private'));
+ assert.equal(calls.length,1);assert.equal(calls[0].url,'http://127.0.0.1:8080/v1/responses');assert.equal(new Headers(calls[0].init.headers).has('Authorization'),false);assert.equal(JSON.stringify(s),before);
+}));
+for(const amendment of [false,true])test(`G2 local ${amendment?'amendment':'generation'} body deadline is 45 seconds with no late draft`,async t=>withProvider(t,'strata',async()=>{
+ const deadline=new AbortController();let timeouts=0,calls=0;
+ t.mock.method(AbortSignal,'timeout',ms=>{assert.equal(ms,45000);timeouts++;return deadline.signal;});
+ t.mock.method(globalThis,'fetch',async(url,init)=>{calls++;assert.equal(url,'http://127.0.0.1:8080/v1/responses');assert.equal(new Headers(init.headers).has('Authorization'),false);const response=new Response('{}');response.json=async()=>{deadline.abort();throw new DOMException('private timeout','AbortError');};return response;});
+ const s=amendment?await snapshot():await generationSnapshot(client(),member,identity,workspace,{text:'给小林约课',selection:{}}),before=JSON.stringify(s);
+ await assert.rejects(()=>generateResponse(s),{code:'MODEL_TIMEOUT',status:504});assert.equal(timeouts,1);assert.equal(calls,1);assert.equal(JSON.stringify(s),before);
+}));
+for(const amendment of [false,true])test(`G2 unknown provider rejects ${amendment?'amendment':'generation'} before any send`,async t=>withProvider(t,'unknown',async()=>{
+ let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;throw Error('must not send');});
+ const s=amendment?await snapshot():await generationSnapshot(client(),member,identity,workspace,{text:'给小林约课',selection:{}});
+ await assert.rejects(()=>generateResponse(s),/Unknown YUELIAN_MODEL_PROVIDER/);assert.equal(calls,0);
+}));
 const member={role:'owner',active:true,permissions:[],revision:4};
 const row=(id,kind,payload,extra={})=>({id,kind,payload,revision:1,student_id:null,lesson_id:null,venue_id:null,visibility:'shared',...extra});
 const records=()=>[

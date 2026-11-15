@@ -1,4 +1,5 @@
 import {Draft,validatePlan,interpretAmendment,scopeInput} from '../shared/assistant.ts';
+import {requireModel} from './model.mjs';
 import {HttpError} from './policy.mjs';
 import {modelContext,inferPlan,authorizePlan,checkRevisions,savePlan} from './plans.mjs';
 import {prepareUnderstanding} from './understanding.mjs';
@@ -86,8 +87,8 @@ export async function generateResponse(snapshot){
  if(snapshot.clarification)return {plan:clarificationPlan(snapshot.clarification.question),meta:{understanding:{...snapshot.meta,clarification:snapshot.clarification}}};
  let response;
  if(snapshot.base){
-  if(!process.env.DEEPSEEK_API_KEY)throw new HttpError(503,'模型尚未配置。','MODEL_NOT_CONFIGURED');
-  response=await interpretAmendment(snapshot.input,snapshot.base,process.env.DEEPSEEK_API_KEY);
+  const {key,runtime}=requireModel();
+  response=await interpretAmendment(snapshot.input,snapshot.base,key,fetch,undefined,runtime);
  }else response=await inferPlan(snapshot.input);
  return {...response,plan:bindExplicitVenue(response.plan,snapshot),meta:{...response.meta,understanding:{...snapshot.meta,clarification:null}}};
 }
