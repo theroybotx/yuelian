@@ -198,6 +198,7 @@ jobs:
           VERCEL_PROJECT_ID: prj_sClf94SbvxJ4cS3Etv6EnrQ9OrXR
           YUELIAN_RELEASE_BRANCH: ${{ vars.YUELIAN_RELEASE_BRANCH }}
           YUELIAN_PRODUCTION_ORIGIN: ${{ vars.YUELIAN_PRODUCTION_ORIGIN }}
+          YUELIAN_INITIAL_STAGE_ID: ${{ vars.YUELIAN_INITIAL_STAGE_ID }}
         run: VERCEL_CLI="$RUNNER_TEMP/vercel-cli/node_modules/.bin/vercel" node scripts/vercel-release.mjs production
 
   first_stage:

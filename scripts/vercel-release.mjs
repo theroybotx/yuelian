@@ -37,6 +37,39 @@ export async function forwardOnly(env,api,{initialProduction=false}={}){
  const host=new URL(env.YUELIAN_PRODUCTION_ORIGIN).hostname;
  const live=await api('vercel','/v13/deployments/'+encodeURIComponent(host)+scope,{allow404:true});
  if(!live){
+  if(env.YUELIAN_INITIAL_STAGE_ID){
+   // Continue the already reconciled stage, never create another bootstrap.
+   // This exception is valid only before any alias, with a verified same-SHA
+   // isolated Preview. Every subsequent guard re-reads the external state.
+   if(!/^dpl_[A-Za-z0-9]+$/.test(env.YUELIAN_INITIAL_STAGE_ID))throw Error('Invalid initial stage identity');
+   const project=await api('vercel','/v9/projects/'+env.VERCEL_PROJECT_ID+scope);
+   if(project.id!==env.VERCEL_PROJECT_ID||project.autoAssignCustomDomains!==false||!project.targets||Object.keys(project.targets).length)throw Error('Initial alias isolation changed');
+   const stage=await api('vercel','/v13/deployments/'+env.YUELIAN_INITIAL_STAGE_ID+scope);
+   if(stage.id!==env.YUELIAN_INITIAL_STAGE_ID||stage.projectId!==env.VERCEL_PROJECT_ID||stage.readyState!=='READY'||stage.target!=='production'||!shaPattern.test(stage.meta?.sourceCommit||'')||!Array.isArray(stage.alias)||stage.alias.length||!/^\d+$/.test(stage.meta?.firstStageReceipt||''))throw Error('Initial stage provenance unverified');
+   const path='/repos/'+repository+'/deployments/';
+   const receipt=await api('github',path+stage.meta.firstStageReceipt);
+   const statuses=await api('github',path+stage.meta.firstStageReceipt+'/statuses?per_page=1');
+   if(receipt.sha!==stage.meta.sourceCommit||receipt.environment!=='yuelian-first-stage'||receipt.payload?.projectId!==env.VERCEL_PROJECT_ID||receipt.payload?.sourceCommit!==stage.meta.sourceCommit||statuses[0]?.state!=='success'||statuses[0]?.environment_url!=='https://'+stage.url)throw Error('Initial stage not reconciled');
+   const comparison=await api('github','/repos/'+repository+'/compare/'+stage.meta.sourceCommit+'...'+env.GITHUB_SHA);
+   if(!['ahead','identical'].includes(comparison.status))throw Error('Initial candidate would roll back or diverge');
+   const previews=await api('github',path.slice(0,-1)+'?sha='+env.GITHUB_SHA+'&environment=yuelian-preview-release&per_page=2');
+   if(!Array.isArray(previews)||previews.length!==1)throw Error('Exactly one same-SHA Preview receipt required');
+   const preview=previews[0];
+   if(preview.sha!==env.GITHUB_SHA||preview.environment!=='yuelian-preview-release'||preview.payload?.projectId!==env.VERCEL_PROJECT_ID||preview.payload?.sourceCommit!==env.GITHUB_SHA||preview.payload?.target!=='preview')throw Error('Preview receipt mismatch');
+   const result=(await api('github',path+preview.id+'/statuses?per_page=1'))[0];
+   if(result?.state!=='success'||!/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(result.environment_url||''))throw Error('Same-SHA Preview has not succeeded');
+   const data=checkedDeployment(await api('vercel','/v13/deployments/'+new URL(result.environment_url).hostname+scope),env,'preview');
+   if(data.meta?.continuousReceipt!==String(preview.id)||data.url!==new URL(result.environment_url).hostname)throw Error('Preview deployment binding mismatch');
+   const listed=await api('vercel','/v6/deployments'+scope+'&projectId='+env.VERCEL_PROJECT_ID+'&target=production&limit=100');
+   if(!Array.isArray(listed.deployments)||listed.pagination?.next)throw Error('Initial production inventory unknown');
+   for(const item of listed.deployments){
+    if((item.uid||item.id)===stage.id)continue;
+    if(item.meta?.sourceCommit!==env.GITHUB_SHA||!/^\d+$/.test(item.meta?.continuousReceipt||''))throw Error('Unrelated production deployment before first alias');
+    const own=await api('github',path+item.meta.continuousReceipt);
+    if(own.sha!==env.GITHUB_SHA||own.environment!=='yuelian-production-release'||own.payload?.ciRunId!==env.GITHUB_RUN_ID)throw Error('Unrelated production intent');
+   }
+   return false;
+  }
   if(initialProduction)return true;
   const listed=await api('vercel','/v6/deployments'+scope+'&projectId='+encodeURIComponent(env.VERCEL_PROJECT_ID)+'&target=production&limit=1');
   if(!Array.isArray(listed.deployments)||listed.deployments.length)throw Error('Production alias unresolved; reconcile existing deployments before release');
@@ -145,7 +178,7 @@ export async function runRelease({env,target,command,api,smoke,bootstrap}){
  if(initialProduction)throw Error('Initial production bootstrap pending: stage-first same-SHA Preview and alias isolation must be verified before upload');
  if(!/^[1-9]\d*$/.test(env.GITHUB_RUN_ID||''))throw Error('Missing CI run identity');
  const receiptsPath='/repos/'+repository+'/deployments';
- const environment='yuelian-'+target;
+ const environment='yuelian-'+target+'-release';
  const noReceipt=async()=>{
   const records=await api('github',receiptsPath+'?sha='+policy.sha+'&environment='+environment+'&per_page=1');
   if(!Array.isArray(records)||records.length)throw Error('Existing or unknown continuous release receipt; reconcile before retry');

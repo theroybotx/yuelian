@@ -41,6 +41,16 @@ test('source-staged gateway serves homepage, invitation login, assets and HEAD',
  assert.equal((await handleRequest(request('/assets.json'),env)).status,404);
  assert.equal(hits.length,0);
 });
+test('Preview HTML has a visible runtime-only environment banner; Production and JSON do not',async()=>{
+ for(const route of ['/login','/']){
+  const req=request(route,{headers:{cookie}});
+  const preview=await handleRequest(req,{...env,VERCEL_ENV:'preview'});
+  assert.match(await preview.text(),/id="yuelian-preview-banner"/);
+  const production=await handleRequest(req,{...env,VERCEL_ENV:'production'});
+  assert.doesNotMatch(await production.text(),/id="yuelian-preview-banner"/);
+ }
+ assert.doesNotMatch(await (await handleRequest(request('/api/auth/session'),{...env,VERCEL_ENV:'preview'})).text(),/yuelian-preview-banner/);
+});
 test('wrong origin and missing origin mutations fail before upstream',async()=>{
  for(const value of ['https://attacker.invalid',''])assert.equal((await handleRequest(post('/api/auth/session',{}, {origin:value}),env)).status,403);
  assert.equal((await handleRequest(new Request('https://attacker.invalid/api/auth/session'),env)).status,403);

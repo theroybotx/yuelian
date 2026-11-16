@@ -26,6 +26,8 @@
 4. 未完成发布的下一步由维护者明确决定，保留旧 intent。不得删 receipt 使自动重试绕过未知结果。
 5. 回退代码使用新提交，不 force push。线上恢复按受保护来源、前一已核版本和原授权执行；控制器拒绝不明来源或向后覆盖。
 
-当前首次正式 alias 仍须独立完成：现存 stage 已 READY 但 aliases/production target 为空，常规 `forwardOnly` 会要求对账并拒绝首次提升。不能靠删除门禁或重新打开 first-stage 来绕过；须在隔离 Preview 与同 SHA 条件成立后实现并验证准确的首次提升接续。
+首次正式 alias 接续使用精确 `YUELIAN_INITIAL_STAGE_ID`，只在当前 alias 未解析、项目 `targets={}` 且 `autoAssignCustomDomains=false` 时适用。控制器验证既有stage为READY/production/无alias、原firstStageReceipt已success、候选是stage同版或后继，以及候选同SHA唯一Preview receipt已success且真实部署的目标/项目/来源/receipt全部对应。还核全部production inventory（超过一页拒绝）不含无关上传；上传后只能出现当前run自己的receipt。所有核验在上传及提升前重读；现有alias恢复后自动回到正常forwardOnly。此路径不重开first-stage、不删除receipt、不把离线bootstrap替身投入生产。若同SHA Preview未成功，保持拒绝。
+
+Vercel运行环境为preview时，网关在登录页和业务HTML加入显著固定Preview提示；Production不注入，JSON不改写。此标识使用平台runtime变量，构建制品仍跨目标逐字节可比。
 
 本文件描述源码行为与操作前提，不声称远端部署/账号/业务验收已通过。真实版本和结果见原卡当前 run 的固定证据。

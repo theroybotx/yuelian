@@ -43,10 +43,18 @@ export async function handleRequest(request,env,{assets=assetFetch}={}){
  // The unchanged Worker consumes this internal normalized field. Its audience
  // remains the backend's existing standalone audience, never a business user.
  if(ip&&isIP(ip))headers.set('cf-connecting-ip',ip);
- return worker.fetch(new Request(request,{headers}),{
+ const response=await worker.fetch(new Request(request,{headers}),{
   ASSETS:{fetch:assets},YUELIAN_BACKEND_URL:backend.href.replace(/\/$/,''),
   YUELIAN_STANDALONE_BRIDGE_SECRET:env.YUELIAN_STANDALONE_BRIDGE_SECRET,
  });
+ if(env.VERCEL_ENV==='preview'&&request.method==='GET'&&response.status===200&&response.headers.get('content-type')?.includes('text/html')){
+  const html=await response.text();
+  const banner='<aside id="yuelian-preview-banner" role="note" style="position:fixed;top:0;left:0;right:0;z-index:99999;padding:8px 12px;background:#fff0b8;color:#452a00;text-align:center;font:600 14px/1.4 system-ui">PREVIEW · 独立测试环境 · 仅合成资料，勿填写真实信息</aside>';
+  const output=html.replace(/<body\b[^>]*>/i,match=>match+banner);
+  const resultHeaders=new Headers(response.headers);resultHeaders.delete('content-length');resultHeaders.set('Cache-Control','private, no-store');
+  return new Response(output,{status:response.status,headers:resultHeaders});
+ }
+ return response;
 }
 
 export default async function handler(req,res){

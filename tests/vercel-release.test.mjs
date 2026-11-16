@@ -149,6 +149,37 @@ test('first production requires proof that no prior production deployment exists
  assert.equal(await forwardOnly(prod,async(_,path)=>path.startsWith('/v13/')?null:{deployments:[]}),true);
  await assert.rejects(forwardOnly(prod,async(_,path)=>path.startsWith('/v13/')?null:{deployments:[deployment()]}),/reconcile/);
 });
+test('first alias continuation requires reconciled stage and successful same-SHA Preview',async()=>{
+ const env={...prod,YUELIAN_INITIAL_STAGE_ID:'dpl_stage'};
+ const stage={...deployment('production',A,'dpl_stage'),url:'stage.vercel.app',alias:[],meta:{sourceCommit:A,firstStageReceipt:'41'}};
+ const preview={...deployment(null,B,'dpl_preview'),url:'preview.vercel.app',meta:{sourceCommit:B,continuousReceipt:'42'}};
+ const api=async(service,path)=>{
+  if(path.includes('/git/ref/'))return {object:{type:'commit',sha:B}};
+  if(path.includes('/compare/'))return {status:'ahead'};
+  if(path.includes('/v9/projects/'))return {id:env.VERCEL_PROJECT_ID,autoAssignCustomDomains:false,targets:{}};
+  if(path.includes('/v13/deployments/dpl_stage'))return stage;
+  if(path.includes('/v13/deployments/preview.vercel.app'))return preview;
+  if(path.includes('/v13/deployments/'))return null;
+  if(path.includes('/deployments/41/statuses'))return [{state:'success',environment_url:'https://stage.vercel.app'}];
+  if(path.includes('/deployments/41'))return {id:41,sha:A,environment:'yuelian-first-stage',payload:{projectId:env.VERCEL_PROJECT_ID,sourceCommit:A}};
+  if(path.includes('/deployments/42/statuses'))return [{state:'success',environment_url:'https://preview.vercel.app'}];
+  if(service==='github'&&path.includes('/deployments?'))return [{id:42,sha:B,environment:'yuelian-preview-release',payload:{projectId:env.VERCEL_PROJECT_ID,sourceCommit:B,target:'preview'}}];
+  if(path.startsWith('/v6/'))return {deployments:[stage]};
+  throw Error('Unexpected continuation lookup '+path);
+ };
+ assert.equal(await forwardOnly(env,api),false);
+ for(const mode of ['missing-preview','wrong-preview','unreconciled-stage','alias-moved','diverged']){
+  const broken=async(s,p,o)=>{
+   if(mode==='missing-preview'&&p.includes('/deployments?'))return [];
+   if(mode==='wrong-preview'&&p.includes('/v13/deployments/preview.vercel.app'))return {...preview,target:'production'};
+   if(mode==='unreconciled-stage'&&p.includes('/deployments/41/statuses'))return [{state:'failure'}];
+   if(mode==='alias-moved'&&p.includes('/v9/projects/'))return {id:env.VERCEL_PROJECT_ID,autoAssignCustomDomains:false,targets:{production:{id:'other'}}};
+   if(mode==='diverged'&&p.includes('/compare/'))return {status:'diverged'};
+   return api(s,p,o);
+  };
+  await assert.rejects(forwardOnly(env,broken));
+ }
+});
 test('first Preview unexpectedly assigned to Production is rejected',()=>{
  assert.throws(()=>checkedDeployment(deployment('production'),base,'preview'),/environment/);
  checkedDeployment(deployment(null),base,'preview');
@@ -167,6 +198,7 @@ function harness({env=base,target='preview',failCommand,refChangesAt=Infinity,sm
  };
  const api=async(service,path,options={})=>{
   if(service==='github'&&path.includes('/deployments')){
+   if(receiptFault==='gate'&&path.includes('environment=yuelian-preview&'))return [{id:999,sha:env.GITHUB_SHA,environment:'yuelian-preview',payload:{}}];
    if(receiptFault==='create'&&options.method==='POST')throw Error('synthetic receipt create denied');
    if(receiptFault==='readback'&&path.endsWith('/deployments/1'))return {...receipts[0],sha:C};
    if(receiptFault==='status'&&path.endsWith('/statuses/2'))return {state:'failure',environment_url:url};
@@ -186,6 +218,10 @@ function harness({env=base,target='preview',failCommand,refChangesAt=Infinity,sm
  const smoke=async()=>{calls.push(['smoke']);if(smokeFails)throw Error('synthetic smoke failed');};
  return {calls,run:()=>runRelease({env,target,command,api,smoke})};
 }
+test('GitHub Environment automatic deployment is distinct from durable upload intent',async()=>{
+ const h=harness({receiptFault:'gate'});await h.run();
+ assert.equal(h.calls.filter(x=>x[0]==='deploy').length,1);
+});
 test('receipt outage or wrong readback refuses upload; uncertain success does not allow another upload',async()=>{
  for(const receiptFault of ['create','readback','unknown']){
   const h=harness({receiptFault});await assert.rejects(h.run(),/receipt/i);
