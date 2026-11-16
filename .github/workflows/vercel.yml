@@ -40,6 +40,7 @@ jobs:
         run: |
           npm run test:unit
           node --test tests/trial-worker.test.mjs
+          node --test tests/backend-relay.test.mjs tests/vercel-first-stage.test.mjs
       - name: Build Vercel artifact and test packaged adapter and release failures
         run: |
           npm run build:vercel
@@ -53,6 +54,14 @@ jobs:
           name: vercel-manifest-${{ github.sha }}
           path: .vercel/output/build-manifest.json
           if-no-files-found: warn
+          retention-days: 7
+      - name: Retain verified deployable Vercel output
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vercel-output-${{ github.sha }}
+          path: .vercel/output
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 7
 
   database_checks:
@@ -102,7 +111,7 @@ jobs:
   preview:
     name: Deploy Preview
     needs: [checks, database_checks]
-    if: github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_type == 'branch' && (vars.YUELIAN_RELEASE_BRANCH == '' || github.ref_name != vars.YUELIAN_RELEASE_BRANCH)
+    if: vars.YUELIAN_DEPLOY_ENABLED == 'true' && github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_type == 'branch' && (vars.YUELIAN_RELEASE_BRANCH == '' || github.ref_name != vars.YUELIAN_RELEASE_BRANCH)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     # Do not cancel remote deploys halfway through. Newer commits supersede old
@@ -138,7 +147,7 @@ jobs:
   production:
     name: Deploy Production
     needs: [checks, database_checks]
-    if: github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_protected && ((vars.YUELIAN_RELEASE_BRANCH != '' && github.ref_type == 'branch' && github.ref_name == vars.YUELIAN_RELEASE_BRANCH) || startsWith(github.ref, 'refs/tags/release-v'))
+    if: vars.YUELIAN_DEPLOY_ENABLED == 'true' && github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_protected && ((vars.YUELIAN_RELEASE_BRANCH != '' && github.ref_type == 'branch' && github.ref_name == vars.YUELIAN_RELEASE_BRANCH) || startsWith(github.ref, 'refs/tags/release-v'))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     concurrency:
@@ -169,3 +178,48 @@ jobs:
           YUELIAN_RELEASE_BRANCH: ${{ vars.YUELIAN_RELEASE_BRANCH }}
           YUELIAN_PRODUCTION_ORIGIN: ${{ vars.YUELIAN_PRODUCTION_ORIGIN }}
         run: VERCEL_CLI="$RUNNER_TEMP/vercel-cli/node_modules/.bin/vercel" node scripts/vercel-release.mjs production
+
+  first_stage:
+    name: First staged deployment
+    needs: [checks, database_checks]
+    if: vars.YUELIAN_FIRST_STAGE_ENABLED == 'true' && github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_protected && github.ref_type == 'branch' && github.ref_name == vars.YUELIAN_RELEASE_BRANCH
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      deployments: write
+      actions: read
+    concurrency:
+      group: yuelian-vercel-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install locked verification dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix server --ignore-scripts --no-audit --no-fund
+      - name: Download this run's checked artifact manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: vercel-manifest-${{ github.sha }}
+          path: .ci-output-manifest
+      - name: Install pinned deployment tool
+        run: npm install --prefix "$RUNNER_TEMP/vercel-cli" --no-save --package-lock=false --no-audit --no-fund vercel@65.14.0
+      - name: Stage the first deployment without assigning domains
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result == 'success' && needs.database_checks.result == 'success' && 'success' || 'failure' }}
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: prj_sClf94SbvxJ4cS3Etv6EnrQ9OrXR
+          YUELIAN_RELEASE_BRANCH: ${{ vars.YUELIAN_RELEASE_BRANCH }}
+          YUELIAN_PRODUCTION_ORIGIN: ${{ vars.YUELIAN_PRODUCTION_ORIGIN }}
+          YUELIAN_FIRST_STAGE_ENABLED: ${{ vars.YUELIAN_FIRST_STAGE_ENABLED }}
+        run: VERCEL_CLI="$RUNNER_TEMP/vercel-cli/node_modules/.bin/vercel" node scripts/vercel-first-stage.mjs

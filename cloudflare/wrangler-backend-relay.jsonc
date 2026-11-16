@@ -1,0 +1,14 @@
+{
+  "name": "yuelian-vercel-backend",
+  "account_id": "07e8a4b09287f3ce9c12d797105bf452",
+  "main": "backend-relay.mjs",
+  "compatibility_date": "2026-05-15",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vpc_services": [
+    {
+      "binding": "YUELIAN_BACKEND",
+      "service_id": "01a199df-d580-7c31-956d-5882481ac045"
+    }
+  ]
+}

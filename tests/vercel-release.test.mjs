@@ -270,11 +270,11 @@ test('no environment switch or mock verification flag enables the real bootstrap
  assert.equal(h.calls.some(x=>x[0]==='deploy'),false);
 });
 
-test('Preview and Production share one non-cancelling release lock without another trigger',()=>{
+test('first stage, Preview and Production share one non-cancelling release lock without another trigger',()=>{
  const workflow=readFileSync(new URL('../.github/workflows/vercel.yml',import.meta.url),'utf8');
  const groups=[...workflow.matchAll(/group: (yuelian-vercel-[^\n]+)/g)].map(match=>match[1]).filter(value=>!value.startsWith('yuelian-vercel-checks'));
- assert.deepEqual(groups,['yuelian-vercel-release','yuelian-vercel-release']);
- assert.equal((workflow.match(/cancel-in-progress: false/g)||[]).length,2);
+ assert.deepEqual(groups,['yuelian-vercel-release','yuelian-vercel-release','yuelian-vercel-release']);
+ assert.equal((workflow.match(/cancel-in-progress: false/g)||[]).length,3);
  assert.doesNotMatch(workflow,/pull_request_target:|workflow_dispatch:|workflow_run:/);
 });
 

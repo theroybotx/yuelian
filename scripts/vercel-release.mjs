@@ -184,10 +184,10 @@ export function realTools(env){
    if(args[0]==='build'&&JSON.parse(readFileSync('.vercel/output/build-manifest.json','utf8')).sourceCommit!==env.GITHUB_SHA)throw Error('Built artifact does not match checked commit');
    return result.stdout;
   },
-  api:async(service,path,{allow404=false}={})=>{
+  api:async(service,path,{allow404=false,method='GET',body}={})=>{
    const base=service==='github'?'https://api.github.com':'https://api.vercel.com';
    const token=service==='github'?env.GH_TOKEN:env.VERCEL_TOKEN;
-   const response=await fetch(base+path,{headers:{authorization:'Bearer '+token,accept:'application/json',...(service==='github'?{'X-GitHub-Api-Version':'2022-11-28'}:{})},redirect:'error',signal:AbortSignal.timeout(30000)});
+   const response=await fetch(base+path,{method,headers:{authorization:'Bearer '+token,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'}),...(service==='github'?{'X-GitHub-Api-Version':'2022-11-28'}:{})},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'error',signal:AbortSignal.timeout(30000)});
    if(response.status===404&&allow404)return null;
    if(!response.ok)throw Error(service+' provenance lookup failed: HTTP '+response.status);
    return response.json();
