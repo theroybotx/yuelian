@@ -96,7 +96,7 @@ async function runBootstrap({env,command,api,smoke,bootstrap}){
  }
  const build=async target=>{
   await command(['pull','--yes','--environment='+target,...(target==='preview'?['--git-branch='+binding.ref.replace(/^refs\/(heads|tags)\//,'')]:[])]);
-  await command(['build',...(target==='production'?['--prod']:[])]);
+  await command(['build-artifact']);
   await command(['verify-artifact']);
   await currentRef(env,api);await isolation();
  };
@@ -144,7 +144,7 @@ export async function runRelease({env,target,command,api,smoke,bootstrap}){
  const initialProduction=target==='production'?await forwardOnly(env,api):false;
  if(initialProduction)throw Error('Initial production bootstrap pending: stage-first same-SHA Preview and alias isolation must be verified before upload');
  await command(['pull','--yes','--environment='+target,...(target==='preview'?['--git-branch='+policy.ref.slice('refs/heads/'.length)]:[])]);
- await command(['build',...(target==='production'?['--prod']:[])]);
+ await command(['build-artifact']);
  await command(['verify-artifact']);
  await currentRef(env,api);
  if(target==='production')await forwardOnly(env,api,{initialProduction});
@@ -168,6 +168,14 @@ export function realTools(env){
  const clean=text=>[env.VERCEL_TOKEN,env.GH_TOKEN,env.VERCEL_AUTOMATION_BYPASS_SECRET].filter(Boolean).reduce((s,value)=>s.replaceAll(value,'[REDACTED]'),text);
  return {
   command:async args=>{
+   if(args[0]==='build-artifact'){
+    const result=spawnSync(process.execPath,['scripts/build-vercel.mjs'],{encoding:'utf8',env,maxBuffer:8*1024*1024});
+    if(result.stdout)process.stdout.write(clean(result.stdout));
+    if(result.stderr)process.stderr.write(clean(result.stderr));
+    if(result.error||result.status!==0)throw Error('Artifact build failed; upload refused');
+    if(JSON.parse(readFileSync('.vercel/output/build-manifest.json','utf8')).sourceCommit!==env.GITHUB_SHA)throw Error('Built artifact does not match checked commit');
+    return result.stdout;
+   }
    if(args[0]==='verify-artifact'){
     const result=spawnSync(process.execPath,['--test','tests/vercel-adapter.test.mjs','tests/vercel-output.test.mjs','tests/vercel-origin.test.mjs','tests/vercel-release.test.mjs'],{encoding:'utf8',env:{...env,GH_TOKEN:'',VERCEL_TOKEN:'',VERCEL_AUTOMATION_BYPASS_SECRET:''},maxBuffer:8*1024*1024});
     if(result.stdout)process.stdout.write(clean(result.stdout));
@@ -175,13 +183,13 @@ export function realTools(env){
     if(result.error||result.status!==0)throw Error('Final target artifact checks failed; upload refused');
     return '';
    }
+   if(!['pull','deploy','inspect','promote'].includes(args[0]))throw Error('Unsupported Vercel command');
    if(!env.VERCEL_CLI)throw Error('Pinned Vercel CLI path missing');
    const result=spawnSync(env.VERCEL_CLI,[...args,'--token='+env.VERCEL_TOKEN],{encoding:'utf8',env:{...env,VERCEL_TELEMETRY_DISABLED:'1',NO_COLOR:'1'},maxBuffer:8*1024*1024});
    if(result.error||result.status!==0){
     if(result.stderr)process.stderr.write(clean(result.stderr));
     throw Error('Vercel '+args[0]+' failed; not retrying an uncertain operation');
    }
-   if(args[0]==='build'&&JSON.parse(readFileSync('.vercel/output/build-manifest.json','utf8')).sourceCommit!==env.GITHUB_SHA)throw Error('Built artifact does not match checked commit');
    return result.stdout;
   },
   api:async(service,path,{allow404=false,method='GET',body}={})=>{

@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {cp,mkdir,mkdtemp,readFile,rename,rm,symlink,writeFile} from 'node:fs/promises';
+import {execFileSync,spawnSync} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
 import {releasePolicy,currentRef,forwardOnly,checkedDeployment,runRelease,realTools} from '../scripts/vercel-release.mjs';
+import {checkedCiManifest} from '../scripts/vercel-first-stage.mjs';
 
 const A='a'.repeat(40),B='b'.repeat(40),C='c'.repeat(40);
 // Synthetic values only: no test reads credentials, touches a real deployment,
@@ -10,6 +15,40 @@ const base={GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'theroybotx/yuelian',GITHUB_
 const prod={...base,GITHUB_REF:'refs/heads/release',GITHUB_REF_PROTECTED:'true'};
 const deployment=(target='production',sha=B,id='dpl_candidate')=>({id,projectId:base.VERCEL_PROJECT_ID,readyState:'READY',target,meta:{sourceCommit:sha}});
 const url='https://yuelian-synthetic.vercel.app';
+
+test('real artifact builder preserves checked bytes and rejects tampering, build failure and wrong source',async t=>{
+ const fixture=await mkdtemp(path.join(tmpdir(),'yuelian-artifact-'));
+ t.after(()=>rm(fixture,{recursive:true,force:true}));
+ const env={PATH:process.env.PATH,HOME:fixture};
+ const root=new URL('../',import.meta.url);
+ for(const file of ['scripts/build-vercel.mjs','frontend/index.html','cloudflare/login.html','cloudflare/worker.ts','vercel/handler.mjs','tests/vercel-output.test.mjs','tests/vercel-http-fixture.mjs','server/src/transport-auth.mjs','server/src/policy.mjs','server/src/auth-crypto.mjs']){
+  const destination=path.join(fixture,file);await mkdir(path.dirname(destination),{recursive:true});
+  await cp(new URL(file,root),destination);
+ }
+ await cp(new URL('public/',root),path.join(fixture,'public'),{recursive:true});
+ await symlink(new URL('node_modules/',root).pathname,path.join(fixture,'node_modules'),'dir');
+ const git=args=>execFileSync('git',args,{cwd:fixture,env,encoding:'utf8'}).trim();
+ git(['init','--quiet']);
+ git(['-c','user.name=Artifact test','-c','user.email=artifact@example.invalid','commit','--quiet','--allow-empty','-m','Synthetic artifact fixture']);
+ const sourceCommit=git(['rev-parse','HEAD']);
+ const build=(sha=sourceCommit)=>spawnSync(process.execPath,['--input-type=module','--eval',
+  `import {realTools} from ${JSON.stringify(new URL('../scripts/vercel-release.mjs',import.meta.url).href)};await realTools({...process.env,GITHUB_SHA:${JSON.stringify(sha)}}).command(['build-artifact']);`
+ ],{cwd:fixture,env,encoding:'utf8'});
+ const verify=()=>spawnSync(process.execPath,['--test','tests/vercel-output.test.mjs'],{cwd:fixture,env,encoding:'utf8'});
+ const manifest=async()=>JSON.parse(await readFile(path.join(fixture,'.vercel/output/build-manifest.json'),'utf8'));
+ let result=build();assert.equal(result.status,0,result.stderr);
+ const checked=await manifest();
+ result=verify();assert.equal(result.status,0,result.stdout+result.stderr);
+ await rename(path.join(fixture,'.vercel/output'),path.join(fixture,'checked-output'));
+ result=build();assert.equal(result.status,0,result.stderr);
+ checkedCiManifest(await manifest(),checked,sourceCommit);
+ result=verify();assert.equal(result.status,0,result.stdout+result.stderr);
+ await writeFile(path.join(fixture,'.vercel/output/config.json'),'{}');
+ result=verify();assert.notEqual(result.status,0);assert.match(result.stdout,/config\.json/);
+ result=build();assert.notEqual(result.status,0);assert.match(result.stderr,/Artifact build failed/);
+ await rename(path.join(fixture,'.vercel/output'),path.join(fixture,'tampered-output'));
+ result=build(sourceCommit===A?B:A);assert.notEqual(result.status,0);assert.match(result.stderr,/does not match checked commit/);
+});
 
 test('Preview works without choosing a production branch',()=>{
  assert.equal(releasePolicy({...base,YUELIAN_RELEASE_BRANCH:''},'preview').target,'preview');
@@ -79,7 +118,7 @@ function harness({env=base,target='preview',failCommand,refChangesAt=Infinity,sm
 }
 test('target-environment artifact is verified after final build and before upload',async()=>{
  const h=harness();await h.run();
- const build=h.calls.findIndex(x=>x[0]==='build');
+ const build=h.calls.findIndex(x=>x[0]==='build-artifact');
  const verify=h.calls.findIndex(x=>x[0]==='verify-artifact');
  const upload=h.calls.findIndex(x=>x[0]==='deploy');
  assert.ok(verify>build&&verify<upload,'final upload must use tested artifact');
@@ -92,7 +131,7 @@ test('unsuccessful CI produces zero deployment side effects',async()=>{
  await assert.rejects(h.run(),/checks/);assert.equal(h.calls.length,0);
 });
 test('install/pull or build failures propagate and never deploy',async()=>{
- for(const stage of ['pull','build']){
+ for(const stage of ['pull','build-artifact']){
   const h=harness({failCommand:stage});await assert.rejects(h.run());
   assert.equal(h.calls.some(x=>x[0]==='deploy'),false);
  }
@@ -109,13 +148,13 @@ test('Preview build/upload flags remain Preview and never promote',async()=>{
  const h=harness();const r=await h.run();assert.equal(r.target,'preview');
  assert.ok(h.calls.find(x=>x[0]==='pull').includes('--environment=preview'));
  assert.ok(h.calls.find(x=>x[0]==='deploy').includes('--environment=preview'));
- assert.equal(h.calls.find(x=>x[0]==='build').includes('--prod'),false);
+ assert.deepEqual(h.calls.find(x=>x[0]==='build-artifact'),['build-artifact']);
  assert.equal(h.calls.some(x=>x[0]==='promote'),false);
 });
 test('Production builds its own artifact, stages without domains, then promotes after smoke',async()=>{
  const h=harness({env:prod,target:'production'});const r=await h.run();assert.equal(r.sourceCommit,B);
  assert.ok(h.calls.find(x=>x[0]==='pull').includes('--environment=production'));
- assert.ok(h.calls.find(x=>x[0]==='build').includes('--prod'));
+ assert.deepEqual(h.calls.find(x=>x[0]==='build-artifact'),['build-artifact']);
  assert.ok(h.calls.find(x=>x[0]==='deploy').includes('--skip-domain'));
  assert.ok(h.calls.findIndex(x=>x[0]==='smoke')<h.calls.findIndex(x=>x[0]==='promote'));
 });
@@ -173,7 +212,7 @@ test('offline bootstrap builds and checks distinct targets, isolates stage, chec
  const h=bootstrapHarness();const result=await h.run();
  assert.equal(result.deploymentId,'dpl_stage');assert.equal(result.previewDeploymentId,'dpl_preview');
  assert.deepEqual(h.calls.filter(x=>x[0]==='pull').map(x=>x[2]),['--environment=production','--environment=preview']);
- assert.equal(h.calls.filter(x=>x[0]==='build').length,2);
+ assert.equal(h.calls.filter(x=>x[0]==='build-artifact').length,2);
  assert.equal(h.calls.filter(x=>x[0]==='verify-artifact').length,2);
  const uploads=h.calls.filter(x=>x[0]==='deploy');assert.equal(uploads.length,2);
  assert.ok(uploads[0].includes('--skip-domain'));assert.ok(uploads[0].includes('--prod'));
@@ -199,7 +238,7 @@ test('bootstrap prerequisites fail closed before any upload: protection, CI, PR,
 });
 
 test('bootstrap build, artifact and durable intent failures never upload an unchecked target',async()=>{
- for(const failCommand of ['pull','build','verify-artifact'])for(const failOccurrence of [1,2]){
+ for(const failCommand of ['pull','build-artifact','verify-artifact'])for(const failOccurrence of [1,2]){
   const h=bootstrapHarness({failCommand,failOccurrence});await assert.rejects(h.run());
   assert.equal(h.calls.filter(x=>x[0]==='deploy').length,failOccurrence-1);assert.equal(h.calls.some(x=>x[0]==='promote'),false);
  }

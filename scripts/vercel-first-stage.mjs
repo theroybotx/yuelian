@@ -35,7 +35,7 @@ export async function runFirstStage({env,command,api,smoke}){
  const listed=await api('vercel','/v6/deployments'+projectScope+'&limit=1');
  if(!Array.isArray(listed.deployments)||listed.deployments.length||listed.pagination?.next!==null)throw Error('Project deployments exist or pagination is unknown; reconcile before upload');
  await command(['pull','--yes','--environment=production']);
- await command(['build','--prod']);
+ await command(['build-artifact']);
  await command(['verify-artifact']);
  await currentRef(env,api);
  await isolation();

@@ -70,7 +70,7 @@ test('existing aliases, deployments and unknown pagination all refuse first uplo
 });
 
 test('build and artifact failures occur before intent creation and upload',async()=>{
- for(const failCommand of ['pull','build','verify-artifact']){
+ for(const failCommand of ['pull','build-artifact','verify-artifact']){
   const h=harness({failCommand});await assert.rejects(h.run());assert.equal(intents(h).length,0);assert.equal(commands(h,'deploy').length,0);
  }
 });
@@ -121,7 +121,7 @@ test('successful first stage records one isolated Production upload and no autom
  const h=harness();const result=await h.run();
  assert.deepEqual(result,{sourceCommit:sha,url,deploymentId:'dpl_synthetic',receiptId:456,target:'production',promoted:false});
  assert.deepEqual(commands(h,'pull')[0].args,['pull','--yes','--environment=production']);
- assert.deepEqual(commands(h,'build')[0].args,['build','--prod']);
+ assert.deepEqual(commands(h,'build-artifact')[0].args,['build-artifact']);
  assert.equal(commands(h,'verify-artifact').length,1);assert.equal(commands(h,'deploy').length,1);
  const upload=commands(h,'deploy')[0];
  for(const arg of ['--prebuilt','--environment=production','--prod','--skip-domain','sourceCommit='+sha,'githubCommitSha='+sha,'githubCommitRef=release','firstStageReceipt=456'])assert.ok(upload.args.includes(arg));
