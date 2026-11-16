@@ -166,7 +166,7 @@ export async function runRelease({env,target,command,api,smoke,bootstrap}){
 
 export function realTools(env){
  const clean=text=>[env.VERCEL_TOKEN,env.GH_TOKEN,env.VERCEL_AUTOMATION_BYPASS_SECRET].filter(Boolean).reduce((s,value)=>s.replaceAll(value,'[REDACTED]'),text);
- return {
+ const tools={
   command:async args=>{
    if(args[0]==='build-artifact'){
     const result=spawnSync(process.execPath,['scripts/build-vercel.mjs'],{encoding:'utf8',env,maxBuffer:8*1024*1024});
@@ -190,6 +190,11 @@ export function realTools(env){
     if(result.stderr)process.stderr.write(clean(result.stderr));
     throw Error('Vercel '+args[0]+' failed; not retrying an uncertain operation');
    }
+   if(args[0]==='inspect'){
+    const summary=JSON.parse(result.stdout);
+    if(typeof summary?.id!=='string'||!summary.id)throw Error('Inspected deployment ID missing');
+    return JSON.stringify(await tools.api('vercel','/v13/deployments/'+encodeURIComponent(summary.id)+'?teamId='+encodeURIComponent(env.VERCEL_ORG_ID)));
+   }
    return result.stdout;
   },
   api:async(service,path,{allow404=false,method='GET',body}={})=>{
@@ -212,6 +217,7 @@ export function realTools(env){
    if(origin.status!==415)throw Error('Live same-origin login boundary smoke check failed');
   },
  };
+ return tools;
 }
 
 if(process.argv[1]===fileURLToPath(import.meta.url)){

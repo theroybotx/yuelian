@@ -16,6 +16,59 @@ const prod={...base,GITHUB_REF:'refs/heads/release',GITHUB_REF_PROTECTED:'true'}
 const deployment=(target='production',sha=B,id='dpl_candidate')=>({id,projectId:base.VERCEL_PROJECT_ID,readyState:'READY',target,meta:{sourceCommit:sha}});
 const url='https://yuelian-synthetic.vercel.app';
 
+async function inspectFixture(t,summary={id:'dpl_candidate',url:url.slice('https://'.length),readyState:'READY',target:'production'}){
+ const fixture=await mkdtemp(path.join(tmpdir(),'yuelian-inspect-'));
+ t.after(()=>rm(fixture,{recursive:true,force:true}));
+ const cli=path.join(fixture,'vercel');const argsFile=path.join(fixture,'args.json');
+ await writeFile(cli,'#!'+process.execPath+'\n'+
+  "import {writeFileSync} from 'node:fs';\n"+
+  'writeFileSync('+JSON.stringify(argsFile)+',JSON.stringify(process.argv.slice(2)));\n'+
+  'process.stdout.write('+JSON.stringify(JSON.stringify(summary))+');\n',{mode:0o700});
+ return {tools:realTools({...prod,VERCEL_CLI:cli}),argsFile};
+}
+
+test('real inspect waits with the CLI then resolves its summary ID through the scoped deployment API',async t=>{
+ const {tools,argsFile}=await inspectFixture(t);const calls=[];
+ const raw={...deployment(),url:url.slice('https://'.length),meta:{sourceCommit:B,firstStageReceipt:'synthetic-receipt'}};
+ t.mock.method(globalThis,'fetch',async(input,init)=>{
+  calls.push({input:String(input),init});
+  assert.deepEqual(JSON.parse(await readFile(argsFile,'utf8')),['inspect',url,'--wait','--timeout','5m','--json','--token='+base.VERCEL_TOKEN]);
+  return Response.json(raw);
+ });
+ const output=await tools.command(['inspect',url,'--wait','--timeout','5m','--json']);
+ assert.deepEqual(JSON.parse(output),raw);
+ assert.equal(checkedDeployment(JSON.parse(output),prod,'production').meta.firstStageReceipt,'synthetic-receipt');
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].input,'https://api.vercel.com/v13/deployments/dpl_candidate?teamId='+base.VERCEL_ORG_ID);
+ assert.equal(calls[0].init.method,'GET');
+ assert.equal(calls[0].init.headers.authorization,'Bearer '+base.VERCEL_TOKEN);
+ assert.equal(calls[0].init.redirect,'error');
+});
+
+test('real inspect refuses a missing CLI deployment ID before API access',async t=>{
+ const {tools}=await inspectFixture(t,{url,readyState:'READY'});let calls=0;
+ t.mock.method(globalThis,'fetch',async()=>{calls++;throw Error('Unexpected API access');});
+ await assert.rejects(tools.command(['inspect',url,'--wait','--timeout','5m','--json']),/deployment ID missing/i);
+ assert.equal(calls,0);
+});
+
+test('real inspect propagates deployment API failure without accepting CLI READY',async t=>{
+ const {tools}=await inspectFixture(t);let calls=0;
+ t.mock.method(globalThis,'fetch',async()=>{calls++;return new Response('',{status:403});});
+ await assert.rejects(tools.command(['inspect',url,'--wait','--timeout','5m','--json']),/vercel provenance lookup failed: HTTP 403/);
+ assert.equal(calls,1);
+});
+
+test('real inspect raw deployment still must pass project, state, source and target guards',async t=>{
+ const {tools}=await inspectFixture(t);
+ for(const data of [{...deployment(),projectId:'other'},{...deployment(),readyState:'ERROR'},{...deployment(),meta:{sourceCommit:C}},{...deployment(),target:'preview'}]){
+  const mocked=t.mock.method(globalThis,'fetch',async()=>Response.json(data));
+  const output=await tools.command(['inspect',url,'--wait','--timeout','5m','--json']);
+  assert.throws(()=>checkedDeployment(JSON.parse(output),prod,'production'),/provenance mismatch|environment mismatch/);
+  mocked.mock.restore();
+ }
+});
+
 test('real artifact builder preserves checked bytes and rejects tampering, build failure and wrong source',async t=>{
  const fixture=await mkdtemp(path.join(tmpdir(),'yuelian-artifact-'));
  t.after(()=>rm(fixture,{recursive:true,force:true}));
