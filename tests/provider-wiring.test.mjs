@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 
 const command = 'node --experimental-vm-modules --experimental-transform-types --import ./tests/isolation.mjs --test tests/assistant.test.ts tests/plan-amendment.test.ts tests/generation.test.mjs tests/model-provider.test.mjs tests/model-route.test.mjs';
 const wiringCommand = 'node --test tests/provider-wiring.test.mjs';
+const aiCommand = 'node --experimental-vm-modules --import ./tests/isolation.mjs --test tests/ai-status.test.mjs tests/workspace-client.test.mjs tests/auth-client-races.test.mjs';
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const workflow = readFileSync(new URL('../.github/workflows/vercel.yml', import.meta.url), 'utf8');
 
@@ -16,6 +17,8 @@ function validate(scripts, yaml) {
   assert.ok(checks, 'checks job required');
   assert.doesNotMatch(checks, /secrets\.|continue-on-error:/, 'provider checks must remain secretless and fail closed');
   assert.doesNotMatch(checks.split('    steps:')[0], /\n\s+if:/, 'checks job must be unconditional');
+  assert.equal(scripts['test:ai:status'], aiCommand, 'complete isolated AI and client race entry required');
+  assert.ok(checks.includes('          npm run test:ai:status\n'), 'checks must call AI regression without masking failures');
   assert.ok(checks.includes('      - name: Isolated provider regression\n        run: |\n          npm run test:provider\n          npm run test:provider:wiring\n'), 'checks must call both entries without masking failures');
 }
 
@@ -40,3 +43,17 @@ for (const entry of ['test:provider', 'test:provider:wiring']) {
 test('masked provider failure is rejected', () => {
   assert.throws(() => validate(pkg.scripts, workflow.replace('npm run test:provider\n', 'npm run test:provider || true\n')));
 });
+for (const part of ['tests/ai-status.test.mjs', 'tests/workspace-client.test.mjs', 'tests/auth-client-races.test.mjs', '--import ./tests/isolation.mjs']) {
+  test(`AI entry omission of ${part} is rejected`, () => {
+    assert.throws(() => validate({...pkg.scripts, 'test:ai:status': aiCommand.replace(part, '')}, workflow));
+  });
+}
+test('missing AI entry is rejected', () => {
+  const scripts = {...pkg.scripts}; delete scripts['test:ai:status'];
+  assert.throws(() => validate(scripts, workflow));
+});
+for (const replacement of ['', '          npm run test:ai:status || true\n']) {
+  test(`AI CI omission or masked failure is rejected: ${JSON.stringify(replacement)}`, () => {
+    assert.throws(() => validate(pkg.scripts, workflow.replace('          npm run test:ai:status\n', replacement)));
+  });
+}

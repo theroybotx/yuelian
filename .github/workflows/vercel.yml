@@ -35,6 +35,7 @@ jobs:
         run: |
           npm run test:provider
           npm run test:provider:wiring
+          npm run test:ai:status
       - name: Existing unit and edge-contract tests
         run: |
           npm run test:unit
