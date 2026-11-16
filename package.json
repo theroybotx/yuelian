@@ -13,6 +13,8 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "test:unit": "node --experimental-vm-modules --experimental-transform-types --test tests/assistant.test.ts tests/operations.test.mjs tests/testing.test.mjs tests/workspace-client.test.mjs tests/workspace-bridge.test.mjs tests/auth-unit.test.mjs tests/auth-client-races.test.mjs tests/policy.test.mjs tests/understanding-context.test.mjs tests/plan-amendment.test.ts tests/generation.test.mjs tests/semantic/oracle.test.mjs tests/semantic/intent-v1.1.test.mjs tests/transport-auth.test.mjs",
+    "test:provider": "node --experimental-vm-modules --experimental-transform-types --import ./tests/isolation.mjs --test tests/assistant.test.ts tests/plan-amendment.test.ts tests/generation.test.mjs tests/model-provider.test.mjs tests/model-route.test.mjs",
+    "test:provider:wiring": "node --test tests/provider-wiring.test.mjs",
     "test:auth": "node --use-env-proxy --experimental-transform-types tests/auth-api.test.mjs",
     "test:integration": "node tests/full/run.mjs",
     "test:ui": "node tests/browser-ui.mjs",

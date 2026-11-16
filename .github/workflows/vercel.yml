@@ -31,6 +31,10 @@ jobs:
           npm ci --prefix server --ignore-scripts --no-audit --no-fund
       - name: Static checks
         run: npm run lint
+      - name: Isolated provider regression
+        run: |
+          npm run test:provider
+          npm run test:provider:wiring
       - name: Existing unit and edge-contract tests
         run: |
           npm run test:unit
