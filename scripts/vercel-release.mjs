@@ -43,7 +43,7 @@ export async function forwardOnly(env,api,{initialProduction=false}={}){
    // isolated Preview. Every subsequent guard re-reads the external state.
    if(!/^dpl_[A-Za-z0-9]+$/.test(env.YUELIAN_INITIAL_STAGE_ID))throw Error('Invalid initial stage identity');
    const project=await api('vercel','/v9/projects/'+env.VERCEL_PROJECT_ID+scope);
-   if(project.id!==env.VERCEL_PROJECT_ID||project.autoAssignCustomDomains!==false||!project.targets||Object.keys(project.targets).length)throw Error('Initial alias isolation changed');
+   if(project.id!==env.VERCEL_PROJECT_ID||project.autoAssignCustomDomains!==false||!project.targets||Object.keys(project.targets).some(key=>key!=='preview'))throw Error('Initial alias isolation changed');
    const stage=await api('vercel','/v13/deployments/'+env.YUELIAN_INITIAL_STAGE_ID+scope);
    if(stage.id!==env.YUELIAN_INITIAL_STAGE_ID||stage.projectId!==env.VERCEL_PROJECT_ID||stage.readyState!=='READY'||stage.target!=='production'||!shaPattern.test(stage.meta?.sourceCommit||'')||!Array.isArray(stage.alias)||stage.alias.length||!/^\d+$/.test(stage.meta?.firstStageReceipt||''))throw Error('Initial stage provenance unverified');
    const path='/repos/'+repository+'/deployments/';
@@ -60,6 +60,9 @@ export async function forwardOnly(env,api,{initialProduction=false}={}){
    if(result?.state!=='success'||!/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(result.environment_url||''))throw Error('Same-SHA Preview has not succeeded');
    const data=checkedDeployment(await api('vercel','/v13/deployments/'+new URL(result.environment_url).hostname+scope),env,'preview');
    if(data.meta?.continuousReceipt!==String(preview.id)||data.url!==new URL(result.environment_url).hostname)throw Error('Preview deployment binding mismatch');
+   // Vercel records a successful Preview in project.targets even before any
+   // Production alias exists. Permit only the exact independently verified one.
+   if(Object.hasOwn(project.targets,'preview')&&project.targets.preview?.id!==data.id)throw Error('Project Preview target binding mismatch');
    const listed=await api('vercel','/v6/deployments'+scope+'&projectId='+env.VERCEL_PROJECT_ID+'&target=production&limit=100');
    if(!Array.isArray(listed.deployments)||listed.pagination?.next)throw Error('Initial production inventory unknown');
    for(const item of listed.deployments){

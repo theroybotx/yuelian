@@ -202,6 +202,11 @@ test('first alias continuation requires reconciled stage and successful same-SHA
   throw Error('Unexpected continuation lookup '+path);
  };
  assert.equal(await forwardOnly(env,api),false);
+ const previewTarget=async(s,p,o)=>p.includes('/v9/projects/')?{id:env.VERCEL_PROJECT_ID,autoAssignCustomDomains:false,targets:{preview:{id:preview.id}}}:api(s,p,o);
+ assert.equal(await forwardOnly(env,previewTarget),false);
+ for(const targets of [{preview:{id:'dpl_other'}},{preview:{}},{custom:{id:preview.id}},{production:{id:'dpl_stage'}}]){
+  await assert.rejects(forwardOnly(env,async(s,p,o)=>p.includes('/v9/projects/')?{id:env.VERCEL_PROJECT_ID,autoAssignCustomDomains:false,targets}:api(s,p,o)));
+ }
  for(const mode of ['missing-preview','wrong-preview','unreconciled-stage','alias-moved','diverged']){
   const broken=async(s,p,o)=>{
    if(mode==='missing-preview'&&p.includes('/deployments?'))return [];
