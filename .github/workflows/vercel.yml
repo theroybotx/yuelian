@@ -111,7 +111,12 @@ jobs:
   preview:
     name: Deploy Preview
     needs: [checks, database_checks]
-    if: vars.YUELIAN_DEPLOY_ENABLED == 'true' && github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_type == 'branch' && (vars.YUELIAN_RELEASE_BRANCH == '' || github.ref_name != vars.YUELIAN_RELEASE_BRANCH)
+    if: vars.YUELIAN_DEPLOY_ENABLED == 'true' && github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_protected && github.ref_type == 'branch' && vars.YUELIAN_PREVIEW_BRANCH != '' && github.ref_name == vars.YUELIAN_PREVIEW_BRANCH && github.ref_name != vars.YUELIAN_RELEASE_BRANCH
+    environment: yuelian-preview
+    permissions:
+      contents: read
+      deployments: write
+      actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     # Do not cancel remote deploys halfway through. Newer commits supersede old
@@ -131,6 +136,11 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm ci --prefix server --ignore-scripts --no-audit --no-fund
+      - name: Download this run's checked artifact manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: vercel-manifest-${{ github.sha }}
+          path: .ci-output-manifest
       - name: Install pinned deployment tool in ephemeral runner directory
         run: npm install --prefix "$RUNNER_TEMP/vercel-cli" --no-save --package-lock=false --no-audit --no-fund vercel@65.14.0
       - name: Build and deploy only the tested current commit to Preview
@@ -142,12 +152,18 @@ jobs:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: prj_sClf94SbvxJ4cS3Etv6EnrQ9OrXR
           YUELIAN_RELEASE_BRANCH: ${{ vars.YUELIAN_RELEASE_BRANCH }}
+          YUELIAN_PREVIEW_BRANCH: ${{ vars.YUELIAN_PREVIEW_BRANCH }}
         run: VERCEL_CLI="$RUNNER_TEMP/vercel-cli/node_modules/.bin/vercel" node scripts/vercel-release.mjs preview
 
   production:
     name: Deploy Production
     needs: [checks, database_checks]
     if: vars.YUELIAN_DEPLOY_ENABLED == 'true' && github.repository == 'theroybotx/yuelian' && github.event_name == 'push' && github.ref_protected && ((vars.YUELIAN_RELEASE_BRANCH != '' && github.ref_type == 'branch' && github.ref_name == vars.YUELIAN_RELEASE_BRANCH) || startsWith(github.ref, 'refs/tags/release-v'))
+    environment: yuelian-production
+    permissions:
+      contents: read
+      deployments: write
+      actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     concurrency:
@@ -165,6 +181,11 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm ci --prefix server --ignore-scripts --no-audit --no-fund
+      - name: Download this run's checked artifact manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: vercel-manifest-${{ github.sha }}
+          path: .ci-output-manifest
       - name: Install pinned deployment tool in ephemeral runner directory
         run: npm install --prefix "$RUNNER_TEMP/vercel-cli" --no-save --package-lock=false --no-audit --no-fund vercel@65.14.0
       - name: Stage, verify and promote the current forward-only production release

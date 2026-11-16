@@ -15,7 +15,7 @@ export function releasePolicy(env,target){
  const protectedRelease=branch&&env.GITHUB_REF==='refs/heads/'+branch&&env.GITHUB_REF_PROTECTED==='true';
  const protectedTag=env.GITHUB_REF_PROTECTED==='true'&&releaseTag.test(env.GITHUB_REF||'');
  if(target==='production'&&!protectedRelease&&!protectedTag)throw Error('Production requires a protected configured release branch or protected release-vX.Y.Z tag');
- if(target==='preview'&&(!env.GITHUB_REF?.startsWith('refs/heads/')||env.GITHUB_REF==='refs/heads/'+branch))throw Error('Preview requires a non-release branch');
+ if(target==='preview'&&(!env.YUELIAN_PREVIEW_BRANCH||env.GITHUB_REF!=='refs/heads/'+env.YUELIAN_PREVIEW_BRANCH||env.GITHUB_REF_PROTECTED!=='true'||env.GITHUB_REF==='refs/heads/'+branch))throw Error('Preview requires a protected configured Preview branch');
  if(!env.VERCEL_TOKEN||!env.GH_TOKEN||!env.VERCEL_ORG_ID||!env.VERCEL_PROJECT_ID)throw Error('Missing deployment authentication or project scope');
  if(env.VERCEL_PROJECT_ID!=='prj_sClf94SbvxJ4cS3Etv6EnrQ9OrXR')throw Error('Unexpected Vercel project');
  if(target==='production'){
@@ -143,16 +143,31 @@ export async function runRelease({env,target,command,api,smoke,bootstrap}){
  if(target==='production'&&bootstrap)return runBootstrap({env,command,api,smoke,bootstrap});
  const initialProduction=target==='production'?await forwardOnly(env,api):false;
  if(initialProduction)throw Error('Initial production bootstrap pending: stage-first same-SHA Preview and alias isolation must be verified before upload');
+ if(!/^[1-9]\d*$/.test(env.GITHUB_RUN_ID||''))throw Error('Missing CI run identity');
+ const receiptsPath='/repos/'+repository+'/deployments';
+ const environment='yuelian-'+target;
+ const noReceipt=async()=>{
+  const records=await api('github',receiptsPath+'?sha='+policy.sha+'&environment='+environment+'&per_page=1');
+  if(!Array.isArray(records)||records.length)throw Error('Existing or unknown continuous release receipt; reconcile before retry');
+ };
+ await noReceipt();
  await command(['pull','--yes','--environment='+target,...(target==='preview'?['--git-branch='+policy.ref.slice('refs/heads/'.length)]:[])]);
  await command(['build-artifact']);
  await command(['verify-artifact']);
  await currentRef(env,api);
  if(target==='production')await forwardOnly(env,api,{initialProduction});
- const output=await command(['deploy','--yes','--prebuilt','--environment='+target,...(target==='production'?['--skip-domain']:[]),'--meta','sourceCommit='+policy.sha,'--meta','githubCommitSha='+policy.sha,'--meta','githubCommitRef='+policy.ref.replace(/^refs\/(heads|tags)\//,'')]);
+ await noReceipt();
+ const payload={version:1,projectId:env.VERCEL_PROJECT_ID,sourceCommit:policy.sha,ref:policy.ref,target,ciRunId:env.GITHUB_RUN_ID,phase:'uploading'};
+ const receipt=await api('github',receiptsPath,{method:'POST',body:{ref:policy.sha,auto_merge:false,required_contexts:[],environment,transient_environment:target==='preview',production_environment:target==='production',payload}});
+ if(!Number.isSafeInteger(receipt.id)||receipt.id<=0)throw Error('Invalid durable release receipt; reconcile before retry');
+ const saved=await api('github',receiptsPath+'/'+receipt.id);
+ if(saved.id!==receipt.id||saved.sha!==policy.sha||saved.environment!==environment||!Object.entries(payload).every(([key,value])=>saved.payload?.[key]===value))throw Error('Durable release receipt readback mismatch; reconcile before retry');
+ const output=await command(['deploy','--yes','--prebuilt','--environment='+target,...(target==='production'?['--skip-domain']:[]),'--meta','continuousReceipt='+receipt.id,'--meta','sourceCommit='+policy.sha,'--meta','githubCommitSha='+policy.sha,'--meta','githubCommitRef='+policy.ref.replace(/^refs\/(heads|tags)\//,'')]);
  const urls=output.trim().split(/\s+/).filter(value=>/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(value));
  if(urls.length!==1)throw Error('CLI did not return exactly one deployment URL');
  const url=urls[0];
  const staged=checkedDeployment(JSON.parse(await command(['inspect',url,'--wait','--timeout','5m','--json'])),env,target);
+ if(staged.meta?.continuousReceipt!==String(receipt.id))throw Error('Deployment receipt binding mismatch; reconcile before retry');
  await smoke(url,env);
  await currentRef(env,api);
  if(target==='production'){
@@ -161,7 +176,11 @@ export async function runRelease({env,target,command,api,smoke,bootstrap}){
   const live=checkedDeployment(await api('vercel','/v13/deployments/'+encodeURIComponent(new URL(env.YUELIAN_PRODUCTION_ORIGIN).hostname)+'?teamId='+encodeURIComponent(env.VERCEL_ORG_ID)),env,target);
   if(live.id!==staged.id)throw Error('Production alias does not resolve to the inspected deployment');
  }
- return {sourceCommit:policy.sha,target,url,deploymentId:staged.id};
+ const status=await api('github',receiptsPath+'/'+receipt.id+'/statuses',{method:'POST',body:{state:'success',environment_url:url,auto_inactive:false,description:'Verified '+target+' deployment '+staged.id}});
+ if(!Number.isSafeInteger(status.id)||status.id<=0)throw Error('Invalid completion status; reconcile before retry');
+ const confirmed=await api('github',receiptsPath+'/'+receipt.id+'/statuses/'+status.id);
+ if(confirmed.state!=='success'||confirmed.environment_url!==url)throw Error('Completion status readback mismatch; reconcile before retry');
+ return {sourceCommit:policy.sha,target,url,deploymentId:staged.id,receiptId:receipt.id};
 }
 
 export function realTools(env){
@@ -181,6 +200,8 @@ export function realTools(env){
     if(result.stdout)process.stdout.write(clean(result.stdout));
     if(result.stderr)process.stderr.write(clean(result.stderr));
     if(result.error||result.status!==0)throw Error('Final target artifact checks failed; upload refused');
+    const {checkedCiManifest}=await import('./vercel-first-stage.mjs');
+    checkedCiManifest(JSON.parse(readFileSync('.vercel/output/build-manifest.json','utf8')),JSON.parse(readFileSync('.ci-output-manifest/build-manifest.json','utf8')),env.GITHUB_SHA);
     return '';
    }
    if(!['pull','deploy','inspect','promote'].includes(args[0]))throw Error('Unsupported Vercel command');

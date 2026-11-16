@@ -11,7 +11,7 @@ import {checkedCiManifest} from '../scripts/vercel-first-stage.mjs';
 const A='a'.repeat(40),B='b'.repeat(40),C='c'.repeat(40);
 // Synthetic values only: no test reads credentials, touches a real deployment,
 // or treats simulated responses as evidence that remote services passed.
-const base={GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'theroybotx/yuelian',GITHUB_EVENT_NAME:'push',GITHUB_SHA:B,GITHUB_REF:'refs/heads/devops/vercel',GITHUB_REF_PROTECTED:'false',CHECKS_RESULT:'success',GH_TOKEN:'synthetic-github',VERCEL_TOKEN:'synthetic-vercel',VERCEL_ORG_ID:'team_synthetic',VERCEL_PROJECT_ID:'prj_sClf94SbvxJ4cS3Etv6EnrQ9OrXR',YUELIAN_RELEASE_BRANCH:'release',YUELIAN_PRODUCTION_ORIGIN:'https://yuelian.vercel.app'};
+const base={GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'theroybotx/yuelian',GITHUB_EVENT_NAME:'push',GITHUB_RUN_ID:'123',GITHUB_SHA:B,GITHUB_REF:'refs/heads/devops/vercel',GITHUB_REF_PROTECTED:'true',YUELIAN_PREVIEW_BRANCH:'devops/vercel',CHECKS_RESULT:'success',GH_TOKEN:'synthetic-github',VERCEL_TOKEN:'synthetic-vercel',VERCEL_ORG_ID:'team_synthetic',VERCEL_PROJECT_ID:'prj_sClf94SbvxJ4cS3Etv6EnrQ9OrXR',YUELIAN_RELEASE_BRANCH:'release',YUELIAN_PRODUCTION_ORIGIN:'https://yuelian.vercel.app'};
 const prod={...base,GITHUB_REF:'refs/heads/release',GITHUB_REF_PROTECTED:'true'};
 const deployment=(target='production',sha=B,id='dpl_candidate')=>({id,projectId:base.VERCEL_PROJECT_ID,readyState:'READY',target,meta:{sourceCommit:sha}});
 const url='https://yuelian-synthetic.vercel.app';
@@ -103,6 +103,12 @@ test('real artifact builder preserves checked bytes and rejects tampering, build
  result=build(sourceCommit===A?B:A);assert.notEqual(result.status,0);assert.match(result.stderr,/does not match checked commit/);
 });
 
+test('Preview refuses arbitrary or unprotected branches even in the same repository',()=>{
+ for(const change of [{YUELIAN_PREVIEW_BRANCH:''},{YUELIAN_PREVIEW_BRANCH:'trusted-preview'},{GITHUB_REF_PROTECTED:'false'}]){
+  assert.throws(()=>releasePolicy({...base,...change},'preview'),/protected configured Preview branch/);
+ }
+});
+
 test('Preview works without choosing a production branch',()=>{
  assert.equal(releasePolicy({...base,YUELIAN_RELEASE_BRANCH:''},'preview').target,'preview');
 });
@@ -149,17 +155,28 @@ test('first Preview unexpectedly assigned to Production is rejected',()=>{
  assert.throws(()=>checkedDeployment(deployment('staging'),base,'preview'),/environment/);
 });
 
-function harness({env=base,target='preview',failCommand,refChangesAt=Infinity,smokeFails=false,wrongTarget=false,aliasMismatch=false,compare='ahead',initial=false}={}){
- const calls=[];let refs=0,promoted=false;
+function harness({env=base,target='preview',failCommand,refChangesAt=Infinity,smokeFails=false,wrongTarget=false,aliasMismatch=false,compare='ahead',initial=false,receiptFault}={}){
+ const calls=[];let refs=0,promoted=false;const receipts=[];
  const command=async args=>{
   calls.push(args);
   if(args[0]===failCommand)throw Error('synthetic '+failCommand+' failed');
   if(args[0]==='deploy')return url+'\n';
-  if(args[0]==='inspect')return JSON.stringify(deployment(wrongTarget?'production':target==='production'?'production':null));
+  if(args[0]==='inspect')return JSON.stringify({...deployment(wrongTarget?'production':target==='production'?'production':null),meta:{sourceCommit:B,continuousReceipt:'1'}});
   if(args[0]==='promote')promoted=true;
   return '';
  };
- const api=async(service,path)=>{
+ const api=async(service,path,options={})=>{
+  if(service==='github'&&path.includes('/deployments')){
+   if(receiptFault==='create'&&options.method==='POST')throw Error('synthetic receipt create denied');
+   if(receiptFault==='readback'&&path.endsWith('/deployments/1'))return {...receipts[0],sha:C};
+   if(receiptFault==='status'&&path.endsWith('/statuses/2'))return {state:'failure',environment_url:url};
+   if(receiptFault==='unknown'&&options.method===undefined)return {};
+   if(path.endsWith('/statuses/2'))return {id:2,state:'success',environment_url:url};
+   if(options.method==='POST'&&path.endsWith('/statuses'))return {id:2,state:options.body.state};
+   if(options.method==='POST'){const record={id:1,sha:env.GITHUB_SHA,...options.body};receipts.push(record);return record;}
+   if(path.endsWith('/deployments/1'))return receipts[0];
+   return receipts;
+  }
   if(service==='github'&&path.includes('/git/ref/'))return {object:{type:'commit',sha:++refs>=refChangesAt?C:env.GITHUB_SHA}};
   if(service==='github'&&path.includes('/compare/'))return {status:compare};
   if(path.startsWith('/v6/'))return {deployments:initial?[]:[deployment('production',A,'dpl_previous')]};
@@ -169,6 +186,25 @@ function harness({env=base,target='preview',failCommand,refChangesAt=Infinity,sm
  const smoke=async()=>{calls.push(['smoke']);if(smokeFails)throw Error('synthetic smoke failed');};
  return {calls,run:()=>runRelease({env,target,command,api,smoke})};
 }
+test('receipt outage or wrong readback refuses upload; uncertain success does not allow another upload',async()=>{
+ for(const receiptFault of ['create','readback','unknown']){
+  const h=harness({receiptFault});await assert.rejects(h.run(),/receipt/i);
+  assert.equal(h.calls.some(x=>x[0]==='deploy'),false);
+ }
+ const h=harness({receiptFault:'status'});await assert.rejects(h.run(),/status readback/);
+ await assert.rejects(h.run(),/receipt.*reconcile/i);
+ assert.equal(h.calls.filter(x=>x[0]==='deploy').length,1);
+});
+
+test('a second workflow run cannot repeat either a completed or uncertain upload',async()=>{
+ for(const failCommand of [undefined,'deploy']){
+  const h=harness({failCommand});
+  if(failCommand)await assert.rejects(h.run());else await h.run();
+  await assert.rejects(h.run(),/receipt.*reconcile/i);
+  assert.equal(h.calls.filter(x=>x[0]==='deploy').length,1);
+ }
+});
+
 test('target-environment artifact is verified after final build and before upload',async()=>{
  const h=harness();await h.run();
  const build=h.calls.findIndex(x=>x[0]==='build-artifact');
@@ -360,6 +396,23 @@ test('no environment switch or mock verification flag enables the real bootstrap
  assert.equal(realTools({...prod,BOOTSTRAP_VERIFIED:'true',VERCEL_BOOTSTRAP_ENABLED:'true'}).bootstrap,undefined);
  const h=bootstrapHarness();h.adapter.kind='platform-verified';await assert.rejects(h.run(),/unverified/);
  assert.equal(h.calls.some(x=>x[0]==='deploy'),false);
+});
+
+test('continuous jobs require protected exact Preview, environments, receipts and same-run manifests',()=>{
+ const workflow=readFileSync(new URL('../.github/workflows/vercel.yml',import.meta.url),'utf8');
+ const preview=workflow.split('  preview:\n')[1].split('  production:\n')[0];
+ const production=workflow.split('  production:\n')[1].split('  first_stage:\n')[0];
+ assert.match(preview,/github\.ref_protected/);
+ assert.match(preview,/github\.ref_name == vars\.YUELIAN_PREVIEW_BRANCH/);
+ for(const [job,target] of [[preview,'preview'],[production,'production']]){
+  assert.ok(job.includes('environment: yuelian-'+target));
+  assert.match(job,/deployments: write/);
+  assert.match(job,/actions: read/);
+  assert.match(job,/name: vercel-manifest-\$\{\{ github.sha \}\}/);
+  assert.match(job,/path: .ci-output-manifest/);
+ }
+ const source=readFileSync(new URL('../scripts/vercel-release.mjs',import.meta.url),'utf8');
+ assert.match(source,/checkedCiManifest\(JSON.parse\(readFileSync\('.vercel\/output\/build-manifest.json'/);
 });
 
 test('first stage, Preview and Production share one non-cancelling release lock without another trigger',()=>{
