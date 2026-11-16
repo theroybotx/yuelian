@@ -4,7 +4,7 @@ const clone=value=>structuredClone(value);
 let selfStudentId=null,submitting=false,loggingOut=false,teamNotice='',lastWorkspaceId=null,loadSequence=0;
 let sheetState = null, inviteStudentId=null, inviteReceipt=null;
 let aiState='checking', aiRequest=null, aiEpoch=0, lastAI=null;
-const aiLabel=()=>aiState==='ready'?'DeepSeek V4.1 Flash · Medium':aiState==='missing'?'AI 待连接':'正在检查 AI 连接';
+const aiLabel=()=>aiState==='checking'?'正在检查 AI 连接':aiState==='missing'||session.status?.configured!==true?'AI 待连接':typeof session.status.model==='string'&&session.status.model.trim()?session.status.model:'AI 已配置';
 function cancelAI(){aiEpoch++;aiRequest?.abort();aiRequest=null;}
 const useOperationSheet=()=>!!result;
 let data=emptyData(),role='coach';
@@ -153,7 +153,7 @@ function renderComposer(prominent=false) {
  return `${prominent?`<div class="compose-heading"><span class="overline">YUELIAN ASSISTANT</span><h2>${role==='coach'?'今天，想安排什么？':'下一次上场，从这里开始。'}</h2><p>说一句，整理成可以确认的操作。</p></div>`:'<div class="compact-heading"><span class="assistant-label">约练 AI</span><span>说一句，一起处理</span></div>'}
  <form class="composer ${prominent?'prominent-composer':''}" id="command-form">${icon('command','input-symbol')}<textarea id="command-input" aria-label="告诉约练你要做什么" placeholder="${!canAction('booking')?'例如：查看这个月的已完成课程':role==='coach'?'例如：帮 '+esc(student(studentId)?.name||data.students[0]?.name||'学员')+' 约下周三18点在常用场地练一小时':'例如：帮我约下周三18点在常用场地练一小时'}" rows="${prominent?'2':'1'}" maxlength="1600">${esc(inputValue)}</textarea><div class="composer-actions">${button(icon('mic'),'voice','icon-button','aria-label="填入语音示例（不录音）" title="不录音，仅填入示例"')}<button class="send" type="submit" aria-label="处理这句话">${prominent?'<span>生成操作</span>':'<span>生成操作</span>'}${icon('arrow')}</button></div></form>
  <div class="composer-examples">${availableExamples().slice(0,prominent?3:4).map(([id,label])=>button(label,'example','example',`data-example="${id}"`)).join('')}</div>
- <div class="composer-bottom"><span>${context?`<span class="composer-context">当前：${esc(context)}</span> · `:''}<span data-ai-status>${aiLabel()}</span> · 核对后执行</span>${undoState?button('撤销上次修改','undo','undo-link'):''}</div>`;
+ <div class="composer-bottom"><span>${context?`<span class="composer-context">当前：${esc(context)}</span> · `:''}<span data-ai-status>${esc(aiLabel())}</span> · 核对后执行</span>${undoState?button('撤销上次修改','undo','undo-link'):''}</div>`;
 }
 function pendingMessages() {return data.messages.filter(m=>m.state==='pending'&&(role==='coach'?['booking','balance','practice'].includes(m.kind):m.student===selfStudentId&&m.kind==='proposal'));}
 function isActionable(m) {return canAction('message-decision')&&m?.state==='pending'&&((role==='coach'&&m.kind==='booking')||(role==='student'&&m.kind==='proposal'&&m.student===selfStudentId));}
@@ -636,7 +636,7 @@ $('#operation-dialog').addEventListener('cancel',event=>{event.preventDefault();
 window.visualViewport?.addEventListener('resize',()=>{updateSheetViewport();updateComposerViewport();});
 window.visualViewport?.addEventListener('scroll',()=>{updateSheetViewport();updateComposerViewport();});
 window.addEventListener('resize',()=>{drawerState();if(result&&Boolean(sheetState)!==useOperationSheet())render();updateSheetViewport();updateComposerViewport();});
-onInvalidated(()=>{skipFormCapture=false;formDrafts.clear();if(!suspending)suspendedView=null;inviteStudentId=null;inviteReceipt=null;submitting=false;cancelAI();data=emptyData();result=null;undoState=null;selfStudentId=null;studentId=null;lessonId=null;teamNotice='';contextInputs={};inputValue='';lastAI=null;search='';profileOpen=false;menuOpen=false;$('#toast').textContent='';renderGate();});
+onInvalidated(()=>{skipFormCapture=false;formDrafts.clear();if(!suspending)suspendedView=null;inviteStudentId=null;inviteReceipt=null;submitting=false;cancelAI();data=emptyData();result=null;undoState=null;selfStudentId=null;studentId=null;lessonId=null;teamNotice='';contextInputs={};inputValue='';lastAI=null;aiState='checking';search='';profileOpen=false;menuOpen=false;$('#toast').textContent='';renderGate();});
 loadWorkspace();
 function suspendDraft(){
  if(!session.ready)return null;rememberForms();
@@ -654,7 +654,7 @@ setInterval(()=>{if(!document.hidden&&session.ready&&!result&&!submitting)refres
 const roleLabels={owner:'教练',admin:'管理员',assistant:'助教',student:'学员'};
 const permissionLabels={'students.read':'查看学员','students.write':'管理学员','contacts.read':'查看联系方式','contacts.write':'修改联系方式','notes.read':'查看私人教练记录','notes.write':'填写私人教练记录','ledger.read':'查看课时账本','ledger.write':'登记与扣减课时','feedback.read':'查看教学反馈','feedback.write':'发布教学反馈','practice.read':'查看共享练习','schedule.read':'查看日程','schedule.write':'排课与处理预约','venues.read':'查看场地','venues.write':'管理场地'};
 function syncIdentity(){
- role=session.workspace.role==='student'?'student':'coach';selfStudentId=session.workspace.studentId;aiState=session.status?.configured?'ready':'missing';
+ role=session.workspace.role==='student'?'student':'coach';selfStudentId=session.workspace.studentId;aiState=session.status?.configured===true?'ready':'missing';
  if(!data.students.some(s=>s.id===studentId))studentId=selfStudentId||data.students[0]?.id||null;
  if(lessonId&&!data.lessons.some(l=>l.id===lessonId))lessonId=null;
 }
