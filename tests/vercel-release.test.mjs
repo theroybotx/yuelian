@@ -103,6 +103,40 @@ test('real artifact builder preserves checked bytes and rejects tampering, build
  result=build(sourceCommit===A?B:A);assert.notEqual(result.status,0);assert.match(result.stderr,/does not match checked commit/);
 });
 
+test('direct CLI entry completes artifact verification without circular top-level await',async t=>{
+ const fixture=await mkdtemp(path.join(tmpdir(),'yuelian-release-entry-'));
+ t.after(()=>rm(fixture,{recursive:true,force:true}));
+ await mkdir(path.join(fixture,'.vercel/output'),{recursive:true});
+ await mkdir(path.join(fixture,'.ci-output-manifest'),{recursive:true});
+ const manifest={sourceCommit:B,files:{'synthetic-fixture':'same-digest'}};
+ await writeFile(path.join(fixture,'.vercel/output/build-manifest.json'),JSON.stringify(manifest));
+ await writeFile(path.join(fixture,'.ci-output-manifest/build-manifest.json'),JSON.stringify(manifest));
+ // No network or credentials: execute the real CLI module graph, substituting
+ // only external process/network boundaries. A second receipt stops upload.
+ const preload=path.join(fixture,'preload.mjs');
+ await writeFile(preload,`import child from 'node:child_process';
+import {syncBuiltinESMExports} from 'node:module';
+child.spawnSync=()=>({status:0,stdout:'',stderr:''});
+syncBuiltinESMExports();
+let receipts=0;
+globalThis.fetch=async input=>{
+ const u=new URL(input);
+ if(u.pathname.includes('/git/ref/'))return Response.json({object:{type:'commit',sha:${JSON.stringify(B)}}});
+ if(u.hostname==='api.vercel.com')return Response.json({deployments:[{uid:'fixture-existing'}]});
+ if(u.pathname.endsWith('/deployments'))return Response.json(++receipts===1?[]:[{id:1}]);
+ throw Error('Unexpected external operation');
+};`);
+ const run=()=>spawnSync(process.execPath,['--import',preload,new URL('../scripts/vercel-release.mjs',import.meta.url).pathname,'preview'],{cwd:fixture,env:{PATH:process.env.PATH,...base,VERCEL_CLI:'synthetic-cli'},encoding:'utf8',timeout:10000});
+ let result=run();
+ assert.equal(result.status,1,result.stderr);
+ assert.match(result.stderr,/Existing or unknown continuous release receipt/);
+ assert.doesNotMatch(result.stderr,/unsettled top-level await/);
+ await writeFile(path.join(fixture,'.ci-output-manifest/build-manifest.json'),JSON.stringify({...manifest,files:{'synthetic-fixture':'different'}}));
+ result=run();
+ assert.equal(result.status,1,result.stderr);
+ assert.match(result.stderr,/artifact differs from the same-run checked artifact/);
+});
+
 test('Preview refuses arbitrary or unprotected branches even in the same repository',()=>{
  for(const change of [{YUELIAN_PREVIEW_BRANCH:''},{YUELIAN_PREVIEW_BRANCH:'trusted-preview'},{GITHUB_REF_PROTECTED:'false'}]){
   assert.throws(()=>releasePolicy({...base,...change},'preview'),/protected configured Preview branch/);

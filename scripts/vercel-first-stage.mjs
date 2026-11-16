@@ -1,15 +1,12 @@
 import {appendFileSync,readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {isDeepStrictEqual} from 'node:util';
+import {checkedCiManifest} from './vercel-artifact-guard.mjs';
+export {checkedCiManifest} from './vercel-artifact-guard.mjs';
 import {repository,releasePolicy,currentRef,checkedDeployment,realTools} from './vercel-release.mjs';
 
 const environment='yuelian-first-stage';
 const teamId='team_BT8V0sLlNcPwLzQaoxU9B1g8';
 const receiptsPath='/repos/'+repository+'/deployments';
-
-export function checkedCiManifest(built,checked,sha){
- if(built.sourceCommit!==sha||checked.sourceCommit!==sha||!built.files||typeof built.files!=='object'||Array.isArray(built.files)||Object.keys(built.files).length===0||!isDeepStrictEqual(built.files,checked.files))throw Error('Production artifact differs from the same-run checked artifact; upload refused');
-}
 
 export async function runFirstStage({env,command,api,smoke}){
  const policy=releasePolicy(env,'production');

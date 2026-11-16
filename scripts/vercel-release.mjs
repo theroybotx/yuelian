@@ -233,7 +233,7 @@ export function realTools(env){
     if(result.stdout)process.stdout.write(clean(result.stdout));
     if(result.stderr)process.stderr.write(clean(result.stderr));
     if(result.error||result.status!==0)throw Error('Final target artifact checks failed; upload refused');
-    const {checkedCiManifest}=await import('./vercel-first-stage.mjs');
+    const {checkedCiManifest}=await import('./vercel-artifact-guard.mjs');
     checkedCiManifest(JSON.parse(readFileSync('.vercel/output/build-manifest.json','utf8')),JSON.parse(readFileSync('.ci-output-manifest/build-manifest.json','utf8')),env.GITHUB_SHA);
     return '';
    }
